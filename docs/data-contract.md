@@ -48,3 +48,14 @@ id 最多150个字母、数字、下划线或连字符。tasks 最多3项；exer
 ## 本机备份
 
 设置可导出带 app=lizi-life、schemaVersion=1、days/health/plans 的 JSON，不含密钥。恢复合并时同 id 用备份记录替换本机版本，恢复前要求用户确认已备份。恢复结果进入待上传队列。
+
+
+## v1.2 简化训练清单
+
+新增 `type=exercise`，body 包含 `name`、`detail`（建议组数/次数文字，可空）、`done`（布尔）、`source`（ai/user/legacy）、可选 `planId`、`sourceId`、`completedAt`。不要求实际重量、逐组次数、余力或采纳反馈。
+
+AI计划 `data/plans/YYYY-MM-DD.json` 增加可选 `focus`（训练部位，如背+二头）；exercises 中每项建议提供稳定 `id`（字母数字下划线连字符，最多100字符）、name、sets、reps。同一动作跨修订维持id，即使改名或调整组数也不改id。日常文件中动作记录以 `exerciseId()`映射id，保留用户勾选、编辑与删除墓碑；不要由AI重写日记录来清空用户状态。
+
+页面直接展示AI计划，无需采纳，勾选后写入 `data/days/YYYY-MM-DD.json`；移除AI动作写 `deleted:true`，之后同步不会复活。手动动作同样存 exercise。读取完成情况时：只统计未删除 exercise 中 done=true；旧版 workout 只有 status=完成才算完成，旧数据继续保留。未勾选仅代表未确认，不能擅自认定训练失败。未来日期的勾选不作为已发生训练依据。
+
+定时AI写回仍需连接器能读取/写入目标私有数据仓库；公开lizi_life仅存代码。此版本没有创建新定时任务，也不更改已有早报与晚间提醒。

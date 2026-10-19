@@ -1,4 +1,4 @@
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 export function dayKey(date = new Date()) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
 export function shiftDay(day, offset) { const d = new Date(day + 'T12:00:00+08:00'); d.setUTCDate(d.getUTCDate() + offset); return dayKey(d); }
 export function isDay(day) { return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day + 'T00:00:00Z').toISOString().slice(0,10) === day; }
@@ -6,9 +6,10 @@ export const emptyDay = date => ({ schemaVersion: 1, date, records: {} });
 const equal = (a,b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 export function validateDay(doc, date) {
   if (!doc || doc.schemaVersion !== 1 || doc.date !== date || !doc.records || Array.isArray(doc.records) || typeof doc.records !== 'object') throw new Error('云端日记录格式不正确，未覆盖本机数据');
-  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || ['__proto__','constructor','prototype'].includes(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','question','reflection','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
+  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || ['__proto__','constructor','prototype'].includes(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','exercise','question','reflection','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
   for (const r of Object.values(doc.records)) {
     const b=r.body;
+    if (r.type==='exercise' && (typeof b.name!=='string' || !b.name.trim() || typeof b.done!=='boolean' || (b.detail!==undefined && typeof b.detail!=='string'))) throw new Error('动作清单格式不正确');
     if (r.type==='task' && (typeof b.title!=='string' || typeof b.done!=='boolean')) throw new Error('事项记录格式不正确');
     if (r.type==='workout' && (typeof b.name!=='string' || !['完成','部分完成','未完成'].includes(b.status) || !Array.isArray(b.sets) || b.sets.length>20 || b.sets.some(s=>!s || !Number.isFinite(+s.reps) || +s.reps<1 || +s.reps>1000 || s.weight!=='' && (!Number.isFinite(+s.weight) || +s.weight<0 || +s.weight>1500)))) throw new Error('训练记录格式不正确');
     if (['reflection','question'].includes(r.type) && typeof b.text!=='string') throw new Error('文字记录格式不正确');
@@ -51,8 +52,8 @@ export function normalizeHealth(input) {
 export function normalizePlan(p,date) {
   if (!p || p.schemaVersion!==1 || p.date!==date || typeof p.id!=='string' || !/^[A-Za-z0-9_-]{1,150}$/.test(p.id) || typeof p.summary!=='string') throw new Error('计划 JSON 格式不正确');
   if (p.tasks!==undefined && (!Array.isArray(p.tasks) || p.tasks.length>3 || p.tasks.some(t=>typeof t!=='string'))) throw new Error('计划 tasks 最多三项文字');
-  if (p.exercises!==undefined && (!Array.isArray(p.exercises) || p.exercises.length>30 || p.exercises.some(e=>!e || typeof e.name!=='string' || (e.sets!==undefined && (!Number.isInteger(e.sets)||e.sets<1||e.sets>20)) || (e.reps!==undefined && typeof e.reps!=='string')))) throw new Error('计划 exercises 格式不正确');
-  return {schemaVersion:1,id:p.id,date,summary:p.summary,basedOn:String(p.basedOn||'未注明'),generatedAt:String(p.generatedAt||''),tasks:p.tasks||[],exercises:p.exercises||[]};
+  if (p.exercises!==undefined && (!Array.isArray(p.exercises) || p.exercises.length>30 || p.exercises.some(e=>!e || typeof e.name!=='string' || !e.name.trim() || (e.id!==undefined && (typeof e.id!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(e.id))) || (e.sets!==undefined && (!Number.isInteger(e.sets)||e.sets<1||e.sets>20)) || (e.reps!==undefined && typeof e.reps!=='string')))) throw new Error('计划 exercises 格式不正确');
+  return {schemaVersion:1,id:p.id,date,focus:String(p.focus||''),summary:p.summary,basedOn:String(p.basedOn||'未注明'),generatedAt:String(p.generatedAt||''),tasks:p.tasks||[],exercises:p.exercises||[]};
 }
 export function backup(data) { return {schemaVersion:1,app:'lizi-life',exportedAt:new Date().toISOString(),days:data.days,health:data.health,plans:data.plans}; }
 export function validateBackup(input) {
@@ -62,4 +63,27 @@ export function validateBackup(input) {
   for (const [date,p] of Object.entries(input.plans||{})) normalizePlan(p,date);
   return input;
 }
-export function summarize(days) { return Object.values(days).reduce((s,d)=>{s.tasks+=records(d,'task').length;s.done+=records(d,'task').filter(r=>r.body.done).length;s.workouts+=records(d,'workout').length;return s;},{tasks:0,done:0,workouts:0}); }
+export function summarize(days) { return Object.values(days).reduce((s,d)=>{s.tasks+=records(d,'task').length;s.done+=records(d,'task').filter(r=>r.body.done).length;s.workouts+=trainingItems(d,null).filter(r=>r.done).length;return s;},{tasks:0,done:0,workouts:0}); }
+
+// Stable per-day exercise identity: AI plan refreshes never reset user checkmarks.
+export function exerciseId(exercise) {
+  const key=exercise.id || exercise.name.trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
+  let a=2166136261,b=5381;
+  for(const ch of key){a=Math.imul(a^ch.codePointAt(0),16777619);b=Math.imul(b,33)^ch.codePointAt(0);}
+  return 'exercise-'+(a>>>0).toString(36)+'-'+(b>>>0).toString(36);
+}
+export function trainingItems(doc,plan) {
+  const all=doc?.records||{},out=new Map();
+  for(const e of plan?.exercises||[]) {
+    const id=exerciseId(e),saved=all[id];
+    if(saved?.deleted)continue;
+    const body=saved?.body;
+    out.set(id,{id,name:e.name,detail:[e.sets?e.sets+' 组':'',e.reps||''].filter(Boolean).join(' × '),done:false,source:'ai',planId:plan.id,sourceId:e.id||'',...(body||{})});
+  }
+  for(const r of Object.values(all)) {
+    if(r.deleted || !['exercise','workout'].includes(r.type))continue;
+    if(r.type==='exercise')out.set(r.id,{id:r.id,...r.body});
+    else out.set(r.id,{id:r.id,name:r.body.name,detail:'',done:r.body.status==='完成',source:'legacy',legacyBody:r.body});
+  }
+  return [...out.values()];
+}
