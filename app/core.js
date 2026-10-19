@@ -6,7 +6,7 @@ export const emptyDay = date => ({ schemaVersion: 1, date, records: {} });
 const equal = (a,b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 export function validateDay(doc, date) {
   if (!doc || doc.schemaVersion !== 1 || doc.date !== date || !doc.records || Array.isArray(doc.records) || typeof doc.records !== 'object') throw new Error('云端日记录格式不正确，未覆盖本机数据');
-  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','question','reflection','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
+  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || ['__proto__','constructor','prototype'].includes(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','question','reflection','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
   for (const r of Object.values(doc.records)) {
     const b=r.body;
     if (r.type==='task' && (typeof b.title!=='string' || typeof b.done!=='boolean')) throw new Error('事项记录格式不正确');
