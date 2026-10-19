@@ -8,6 +8,20 @@ export class GithubStore {
     return response.status===204?{}:response.json();
   }
   async verifyPrivate() {const r=await this.api('/repos/'+this.repo);if(!r)throw new Error('找不到仓库，请检查名称和密钥访问范围');if(!r.private)throw new Error('个人数据只允许同步到私有仓库');return r;}
+  async discoverPrivate(preferred) {
+    if(preferred){const saved=await this.api('/repos/'+preferred);if(saved?.private)return saved;}
+    let repos=[];
+    for(let page=1;page<=10;page++){
+      const batch=await this.api('/user/repos?per_page=100&visibility=private&affiliation=owner&page='+page);
+      if(!Array.isArray(batch))throw new Error('无法识别数据仓库');
+      repos.push(...batch.filter(r=>r.private&&r.permissions?.push!==false));
+      if(batch.length<100)break;
+    }
+    const named=repos.filter(r=>r.name==='lizi_life_data');
+    if(named.length===1)return named[0];
+    if(repos.length===1)return repos[0];
+    throw new Error(repos.length?'请使用仅授权一个私有数据仓库的密钥，或将数据仓库命名为 lizi_life_data':'未找到私有数据仓库，请为 lizi_life_data 授予 Contents 读写权限');
+  }
   async read(path) {const r=await this.api('/repos/'+this.repo+'/contents/'+path+'?ref='+encodeURIComponent(this.branch));if(!r)return null;if(r.encoding!=='base64'||typeof r.content!=='string')throw new Error('文件过大或格式不支持');const bytes=Uint8Array.from(atob(r.content.replace(/\s/g,'')),c=>c.charCodeAt(0));return {doc:JSON.parse(new TextDecoder().decode(bytes)),sha:r.sha};}
   async write(path,doc,sha) {const bytes=new TextEncoder().encode(JSON.stringify(doc,null,2)+'\n');let str='';for(const byte of bytes)str+=String.fromCharCode(byte);return this.api('/repos/'+this.repo+'/contents/'+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'life: update '+path,branch:this.branch,content:btoa(str),...(sha?{sha}:{})})});}
   async syncDay(date,base,local) {

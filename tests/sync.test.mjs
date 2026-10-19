@@ -15,3 +15,16 @@ test('409重新读取后保留另一设备的新增记录',async()=>{let gets=0,
 test('同条记录冲突不会发PUT并附带云端内容',async()=>{const base=local(),l=structuredClone(base),r=structuredClone(base);l.records.local.body.title='new local';r.records.local.body.title='new remote';let writes=0;const s=new GithubStore(config,async(url,o)=>{if(o.method==='PUT')writes++;return response(200,encoded(r));});await assert.rejects(s.syncDay(date,base,l),e=>e.conflicts[0]==='local'&&e.remote.records.local.body.title==='new remote');assert.equal(writes,0);});
 test('403与网络失败保留调用方本机对象',async()=>{const l=local();const before=JSON.stringify(l);const s=new GithubStore(config,async()=>response(403,{}));await assert.rejects(s.syncDay(date,emptyDay(date),l),/权限/);assert.equal(JSON.stringify(l),before);});
 test('409重试有上限',async()=>{let writes=0;const s=new GithubStore(config,async(url,o)=>{if(o.method==='PUT'){writes++;return response(409,{});}return response(404,{});});await assert.rejects(s.syncDay(date,emptyDay(date),local()),/云端/);assert.equal(writes,3);});
+
+test('只填密钥时识别已配置的私有仓库',async()=>{
+ const store=new GithubStore({repo:'owner/data',token:'test'},async()=>({ok:true,status:200,json:async()=>({private:true,full_name:'owner/data',default_branch:'main'})}));
+ assert.equal((await store.discoverPrivate('owner/data')).full_name,'owner/data');
+});
+test('自动发现忽略公开代码仓库，优先使用命名数据仓库',async()=>{
+ const store=new GithubStore({token:'test'},async url=>({ok:true,status:200,json:async()=>url.includes('/user/repos')?[{private:true,name:'other',full_name:'owner/other'},{private:true,name:'lizi_life_data',full_name:'owner/lizi_life_data'}]:{private:false}}));
+ assert.equal((await store.discoverPrivate('owner/lizi_life')).full_name,'owner/lizi_life_data');
+});
+test('多个不明确的私有仓库时不猜测写入目标',async()=>{
+ const store=new GithubStore({token:'test'},async()=>({ok:true,status:200,json:async()=>[{private:true,name:'a'},{private:true,name:'b'}]}));
+ await assert.rejects(()=>store.discoverPrivate(),/仅授权一个/);
+});
