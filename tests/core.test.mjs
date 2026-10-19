@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {dayKey,shiftDay,isDay,emptyDay,makeRecord,mergeDays,normalizeHealth,normalizePlan,validateDay,backup,validateBackup,records} from '../app/core.js';
+const date='2026-10-19';
+const rec=(id,title='test')=>makeRecord('task',date,{title,done:false},id);
+const withRecords=(...items)=>({...emptyDay(date),records:Object.fromEntries(items.map(r=>[r.id,r]))});
+test('北京时间日期跨午夜与月份 / 闰年',()=>{assert.equal(dayKey(new Date('2026-10-18T16:01:00Z')),date);assert.equal(shiftDay('2026-03-01',-1),'2026-02-28');assert.equal(shiftDay('2024-03-01',-1),'2024-02-29');assert.equal(isDay('2026-02-30'),false);});
+test('不同设备新建记录不互相覆盖',()=>{const base=emptyDay(date),local=withRecords(rec('local')),remote=withRecords(rec('remote'));const result=mergeDays(base,local,remote);assert.deepEqual(result.conflicts,[]);assert.deepEqual(Object.keys(result.doc.records).sort(),['local','remote']);});
+test('同一条记录被两端修改时不悄悄覆盖',()=>{const a=rec('a','original'),base=withRecords(a);const local=structuredClone(base),remote=structuredClone(base);local.records.a.body.title='local';remote.records.a.body.title='remote';assert.deepEqual(mergeDays(base,local,remote).conflicts,['a']);assert.equal(local.records.a.body.title,'local');});
+test('本机未改的记录采用云端新版本',()=>{const base=withRecords(rec('a')),remote=structuredClone(base);remote.records.a.body.done=true;assert.equal(mergeDays(base,base,remote).doc.records.a.body.done,true);});
+test('移除记录保留墓碑且不复活',()=>{const base=withRecords(rec('a')),local=structuredClone(base);local.records.a.deleted=true;const result=mergeDays(base,local,base);assert.equal(result.doc.records.a.deleted,true);assert.equal(records(result.doc).length,0);});
+test('重复同步得到相同结果',()=>{const d=withRecords(rec('a'));assert.deepEqual(mergeDays(d,d,d),{doc:d,conflicts:[]});});
+test('缺失健康字段仍是未知，不变成0',()=>{const h=normalizeHealth({date,generatedAt:'2026-10-19T10:00:00Z',metrics:{steps:0,sleepMinutes:null}});assert.equal(h.metrics.steps,0);assert.equal('sleepMinutes'in h.metrics,false);assert.equal('restingHeartRate'in h.metrics,false);});
+test('拒绝无效健康数字、日期与单位',()=>{for(const input of [{date:'2026-02-30',metrics:{steps:2}},{date,metrics:{sleepMinutes:2000}},{date,metrics:{steps:'6000'}},{date,metrics:{}},{date,metrics:{steps:-1}}])assert.throws(()=>normalizeHealth({...input,generatedAt:'2026-10-19T10:00:00Z'}));assert.throws(()=>normalizeHealth({date,metrics:{steps:1}}));});
+test('拒绝文件日期不匹配及危险记录id',()=>{assert.throws(()=>validateDay(emptyDay(date),'2026-10-18'));assert.throws(()=>validateDay({...emptyDay(date),records:{'bad"id':{...rec('a'),id:'bad"id'}}},date));});
+test('计划更新id、任务数量和动作数据验证',()=>{const p={schemaVersion:1,id:'plan-1',date,summary:'summary',tasks:['a'],exercises:[{name:'快走',sets:1,reps:'20分钟'}]};assert.equal(normalizePlan(p,date).tasks[0],'a');assert.throws(()=>normalizePlan({...p,tasks:['a','b','c','d']},date));assert.throws(()=>normalizePlan({...p,id:'<script>'},date));assert.throws(()=>normalizePlan({...p,exercises:[{name:'a',sets:-1}]},date));});
+test('备份含数据但不包含凭据',()=>{const b=backup({days:{[date]:withRecords(rec('a'))},health:{},plans:{},token:'SECRET',base:{}});assert.equal(JSON.stringify(b).includes('SECRET'),false);assert.equal(validateBackup(b).days[date].records.a.body.title,'test');assert.throws(()=>validateBackup({schemaVersion:1,app:'other',days:{}}));});
