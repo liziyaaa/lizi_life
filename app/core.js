@@ -1,4 +1,4 @@
-export const VERSION = '1.2.3';
+export const VERSION = '1.2.4';
 export function dayKey(date = new Date()) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
 export function shiftDay(day, offset) { const d = new Date(day + 'T12:00:00+08:00'); d.setUTCDate(d.getUTCDate() + offset); return dayKey(d); }
 export function isDay(day) { return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day + 'T00:00:00Z').toISOString().slice(0,10) === day; }
