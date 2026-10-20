@@ -78,3 +78,9 @@ Mi Fitness的原始InBed区间经用户确认按睡眠时长计入，basis记录
 ## v1.5 Note
 
 日记录新增 `type=note`，body为 `{section: "work" | "training" | "review", text: string}`，text最多20000字，可为空。每个分区使用固定id `note-work`、`note-training`、`note-review`，日期由外层日记录隔离。沿用三方合并及冲突检测，不覆盖其他记录。工作旧question和复盘旧reflection在首次新Note前作为展示回退，原记录保留；空Note表示主动清空，不能回退复活旧文。健康分析数据包含分区Note，复盘复制摘要也包含原始Note记录。
+
+## v1.6 正式数据与闭环测试隔离
+
+真实数据默认仓库为liziyaaa/lizi_workout_data；公开lizi_life只放代码。移除固定演示计划，默认展示今天。只清理明确带preview-20261020来源的旧演示缓存，切换仓库不自动携带旧空间记录。
+
+URL参数testRun指定独立数据根data/test-runs/<id>，本机key也追加测试id。只读真实plan/health基线时不携带可写SHA；day只读写测试空间。测试写入有根路径限制，带testRunId记录不能写到真实根。常规分析排除整个test-runs目录，测试不能作为用户真实完成事实。

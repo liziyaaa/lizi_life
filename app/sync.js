@@ -1,7 +1,9 @@
 import { emptyDay,validateDay,mergeDays } from './core.js';
+import {dataWorkspace} from './workspace.js';
 export class GithubStore {
   // Safari requires native fetch to be called with its global receiver.
-  constructor({repo,branch,token}, fetcher=globalThis.fetch.bind(globalThis)) {this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;}
+  constructor({repo,branch,token,testRunId=null}, fetcher=globalThis.fetch.bind(globalThis)) {this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;this.workspace=dataWorkspace(testRunId);this.testRunId=testRunId;}
+  path(kind,date){return this.workspace.path(kind,date);}
   async api(path,options={}) {
     const response=await this.fetcher('https://api.github.com'+path,{...options,cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+this.token,'X-GitHub-Api-Version':'2022-11-28',...options.headers}});
     if (response.status===404) return null;
@@ -18,15 +20,16 @@ export class GithubStore {
       repos.push(...batch.filter(r=>r.private&&r.permissions?.push!==false));
       if(batch.length<100)break;
     }
-    const named=repos.filter(r=>r.name==='lizi_life_data');
-    if(named.length===1)return named[0];
+    const named=repos.filter(r=>r.name==='lizi_workout_data');if(named.length===1)return named[0];
+    const legacyNamed=repos.filter(r=>r.name==='lizi_life_data');
+    if(legacyNamed.length===1)return legacyNamed[0];
     if(repos.length===1)return repos[0];
-    throw new Error(repos.length?'请使用仅授权一个私有数据仓库的密钥，或将数据仓库命名为 lizi_life_data':'未找到私有数据仓库，请为 lizi_life_data 授予 Contents 读写权限');
+    throw new Error(repos.length?'请使用仅授权一个私有数据仓库的密钥，或将数据仓库命名为 lizi_workout_data':'未找到私有数据仓库，请为 lizi_workout_data 授予 Contents 读写权限');
   }
   async read(path) {const r=await this.api('/repos/'+this.repo+'/contents/'+path+'?ref='+encodeURIComponent(this.branch));if(!r)return null;if(r.encoding!=='base64'||typeof r.content!=='string')throw new Error('文件过大或格式不支持');const bytes=Uint8Array.from(atob(r.content.replace(/\s/g,'')),c=>c.charCodeAt(0));return {doc:JSON.parse(new TextDecoder().decode(bytes)),sha:r.sha};}
-  async write(path,doc,sha) {const bytes=new TextEncoder().encode(JSON.stringify(doc,null,2)+'\n');let str='';for(const byte of bytes)str+=String.fromCharCode(byte);return this.api('/repos/'+this.repo+'/contents/'+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'life: update '+path,branch:this.branch,content:btoa(str),...(sha?{sha}:{})})});}
+  async write(path,doc,sha) {if(this.testRunId&&!path.startsWith(this.workspace.root+'/'))throw new Error('测试写入不能访问真实目录');if(!this.testRunId&&(doc.testRunId||Object.values(doc.records||{}).some(r=>r.testRunId)))throw new Error('测试记录不能写入真实目录');const bytes=new TextEncoder().encode(JSON.stringify(doc,null,2)+'\n');let str='';for(const byte of bytes)str+=String.fromCharCode(byte);return this.api('/repos/'+this.repo+'/contents/'+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'life: update '+path,branch:this.branch,content:btoa(str),...(sha?{sha}:{})})});}
   async syncDay(date,base,local) {
-    const path='data/days/'+date+'.json';
+    const path=this.path('days',date);
     for(let attempt=0;attempt<3;attempt++) {
       const found=await this.read(path);const remote=found?validateDay(found.doc,date):emptyDay(date);
       const merged=mergeDays(base,local,remote);

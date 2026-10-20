@@ -1,65 +1,28 @@
-# LiZi Life · 个人状态站
+# LiZi Life
 
-手机优先的健康、训练与工作记录 PWA。纯静态页面，通过 GitHub Contents API 与私有仓库交换状态。无第三方统计、外部字体或 AI API 调用。健康 / 计划 / 日常记录按日期拆分。
+个人健康、训练、待办与Note记录PWA。当前v1.6.0。公开仓库仅存应用代码和合成测试，真实数据保存在用户授权的私有仓库。
 
-## 第一版
+## 页面
 
-- 今日：精力、疲劳、酸痛、心情；当日三件事；连接状态。
-- 健康：标准 JSON 导入、手动补记、七天睡眠 / 步数趋势；缺失保持未知。
-- 训练：完成 / 部分完成 / 未完成；逐组重量次数、余力、时长、原因与感受；带出同名动作历史。
-- 工作：最多三件事、实际结果、卡点、待讨论问题。
-- 复盘：七天记录、晚间复盘、复制给 ChatGPT 的摘要。
-- 计划：读取建议、采纳 / 调整 / 跳过；不会覆盖已有任务或冒充训练完成。
-- 数据：立即本机保存、30秒合并上传、前台120秒读取、离线补传、备份恢复、三方合并及同条记录冲突处理。
-- 安装：Safari 分享 → 添加到主屏幕；Service Worker 缓存静态资源供离线使用。
+- 日程：当天待办与训练动作，支持勾选和左滑编辑/删除。
+- 健康：完整Apple健康ZIP导入、四项核心指标、七天睡眠/活动趋势。
+- 工作、训练：各有独立的按日Note，输入即本机保存。
+- 复盘：七天概览、Note、复制摘要、备份导出；设置入口仅在复盘页。
 
-## 发布
+## 数据
 
-1. 保持此仓库 **Private**，数据不能放进公开仓库。
-2. 仓库 Settings → Pages → Build and deployment → Source 选择 **GitHub Actions**。
-3. Actions → Deploy Pages → Run workflow。成功后的网址通常为 `https://liziyaaa.github.io/lizi_life/`，以运行返回的部署 URL 为准。
-4. 若私有仓库无法启用 Pages，需要 GitHub Pro / 支持的组织套餐。**不要为发布将数据仓库改为公开**。也可以将 `npm run build` 生成的 `dist` 部署至独立静态主机，仅发布界面。
+默认私有数据仓库为 `liziyaaa/lizi_workout_data`。`data/plans/`为建议、`data/days/`为用户记录、`data/health/`为每日设备摘要。日期以Asia/Shanghai为准。协议见[数据协议](docs/data-contract.md)，ZIP口径见[健康导入](docs/apple-health-zip.md)。
 
-构建严格白名单复制 `app/` 的十个静态文件。`data/`、README、文档、凭据均不会进入 Pages artifact。日常数据更新不触发 Pages 构建。不要把发布来源改成整个 main 分支的根目录。
+浏览器本机缓存与私有仓库分开；本机输入立即保存，通常30秒后上传，也可点击同步或下拉同步。日记录使用三方合并，同条记录并发修改会报冲突。网络或权限失败时保留待同步记录。云端读回后才能确认跨设备交换完成。
 
-## 首次连接
+只需在设置中填写仅授权该私有仓库Contents读写的密钥。密钥由用户本人填写，不会进入Git提交、数据备份或聊天摘要。公开代码仓库和未绑定的旧缓存不会自动混入真实数据。
 
-打开 App 的设置，填入 `liziyaaa/lizi_life`、`main` 和 **仅此仓库 Contents: Read and write** 的 fine-grained PAT。默认密钥仅存在 sessionStorage；勾选记住则保留在本机 localStorage。密钥不包含在数据备份和 GitHub 提交中。
+## 闭环测试
 
-换仓库会切换独立本机数据空间；旧空间不会删除。服务器在每次同步前检查目标仓库私有性。GitHub 网络或权限失败时记录仍留在本机；显示的“同步成功”必须来自真实 API 成功结果。单设备使用优先；多设备同时修改同一条记录会提示人工解决冲突。
+使用 `?testRun=运行id`，界面会标注闭环测试。测试记录写到 `data/test-runs/运行id/`，缓存独立；可只读正常计划和健康作为基线，不能写真实目录。常规ChatGPT分析必须排除该目录。不要向测试代码加入真实健康数值、个人Note或密钥。
 
-## 与 ChatGPT 协作
+## 发布与验证
 
-授权 GitHub 连接器访问该私有仓库后：
+Node22+运行 `npm run check`、`npm test`、`npm run build`。GitHub Pages通过Actions仅发布构建白名单中的21个静态资源，数据目录、文档和凭据不会打包。Service Worker仅缓存同源静态资源，GitHub API数据不经SW缓存。App提供更新提示及手动检查更新。
 
-- 读取 `data/days/YYYY-MM-DD.json`，含 checkin/task/workout/question/reflection/planResponse。
-- 读取 `data/health/YYYY-MM-DD.json`，健康汇总，不上传每秒心率原始样本。
-- 写入 `data/plans/YYYY-MM-DD.json`，格式见 [数据协议](docs/data-contract.md)。
-- 读取应直接按文件路径，不依赖 GitHub 代码搜索索引。用户授权写建议后才更新对应计划文件。
-
-网页不会自动通知 ChatGPT。定时任务是否能使用连接器需要另行实测，首版没有暗中配置定时任务或计费 AI 调用。网页本身不能使用 HealthKit；见 [快捷指令接入](docs/health-shortcut.md)。
-
-## 本地验证
-
-无需安装依赖，Node 22+：
-
-```sh
-npm run check
-npm test
-npm run build
-```
-
-将 `dist` 用任意静态服务器打开。测试覆盖数据验证、缺失值、时区、备份、三方合并、GitHub mock 同步 / 冲突 / 鉴权及发布内容白名单。真实 iPhone 健康授权、锁屏自动化、GitHub token 和 Pages 发布需要在对应设备 / 账号验证。
-
-## 边界
-
-本机存储不是云备份，清除浏览器数据会清除本机记录；建议先同步或导出。页面对所有访问者相同，但个人数据只经授权访问私有仓库。静态网页中的密钥对当前设备上的脚本可见，请仅在可信的私人设备使用并定期轮换。
-
-
-## v1.2 更新
-
-训练改为动作清单：AI计划直接显示，用户可以添加、编辑、删除及勾选。移除逐组录入、状态横幅与计划采纳弹窗。历史详细记录仍兼容保留。
-
-底栏新增原生JavaScript折射镜片：圆角矩形SDF位移图、SVG feDisplacementMap、仅可见内容的惰性视觉副本，再叠加透明模糊与边缘高光。参考 samasante/liquid-glass 的 Safari DOM副本路线，许可证随静态包附带。不会复制含密码字段的容器，无远程脚本依赖。尊重降低透明度 / 增强对比度设置。iPhone实机视觉效果仍需用户验证。
-
-移除main容器tabindex，触屏点击不再显示页面外框；键盘导航保留焦点提示。版本升至1.2.0，保留现有应用内更新机制。
+App不会自动调用模型或向聊天发消息。ChatGPT通过其独立GitHub连接器读取私有数据，也可由用户复制复盘摘要。没有暗中配置的定时分析或计费模型调用。
