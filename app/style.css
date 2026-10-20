@@ -25,3 +25,39 @@ button:focus-visible,a:focus-visible{outline:2px solid #007aff;outline-offset:2p
  .exercise-row .row-actions{gap:7px}.exercise-row .text-button{font-size:13px}
 }
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more){#glass-dock{display:none!important}#mobile-nav{background:#fff!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#mobile-nav:before{display:none}}
+
+/* Compact page header and pull-to-sync. */
+.main-wrap{position:relative}
+.topbar{position:absolute;right:42px;top:30px;min-height:44px;padding:0;z-index:4;gap:0}
+.header-actions{gap:6px}
+.header-actions .sync-status{display:inline-flex;align-items:center;gap:5px;min-height:44px;padding:0 3px;border:0;background:transparent;color:var(--muted);white-space:nowrap}
+.header-actions .save-state{display:inline;font-size:11px;max-width:none;font-weight:400}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:#8e8e93;flex:none}
+.sync-status[data-state="error"]{color:#c33!important}.sync-status[data-state="error"] .sync-dot{background:currentColor}
+.sync-status[data-state="pending"] .sync-dot{background:#d59018}
+.sync-status[data-state="syncing"] .sync-dot{width:10px;height:10px;background:none;border:1.5px solid #007aff35;border-top-color:#007aff;animation:sync-spin .8s linear infinite}
+@keyframes sync-spin{to{transform:rotate(360deg)}}
+.date-control{position:absolute;left:42px;top:78px;width:max-content;max-width:calc(100% - 84px);height:36px;order:initial;padding:0;border:0;color:var(--muted);font-size:13px;line-height:36px}
+.date-control input{position:absolute;inset:0;width:100%;max-width:none;height:100%;opacity:0;cursor:pointer}
+.date-control:focus-within{outline:2px solid #007aff;outline-offset:2px;border-radius:5px}
+.page-head{min-height:90px;align-items:flex-start;padding-right:160px;margin-top:0;margin-bottom:16px}
+.page-head>.tag{display:none}
+.page-head>.button{flex:none}
+#pull-refresh{position:fixed;left:50%;top:calc(8px + env(safe-area-inset-top));transform:translate(-50%,var(--pull-offset,0px));background:#ffffffed;border-radius:20px;padding:8px 14px;font-size:12px;color:var(--muted);box-shadow:0 2px 12px #0001;pointer-events:none;z-index:35}
+#pull-refresh[hidden]{display:none}
+html.pull-sync-enabled{overscroll-behavior-y:none}
+@media(min-width:1400px){.topbar{right:60px;top:38px}.date-control{left:60px;top:86px}}
+@media(max-width:760px){
+ .topbar{right:20px;top:calc(12px + env(safe-area-inset-top));min-height:44px;flex-wrap:nowrap}
+ .header-actions{gap:3px}.header-actions .icon-button{font-size:21px}
+ .date-control{left:20px;top:calc(56px + env(safe-area-inset-top));max-width:calc(100% - 40px);font-size:13px;width:max-content}
+ main{padding-top:calc(12px + env(safe-area-inset-top))}
+ .page-head{min-height:90px;margin:0 0 12px;padding-right:150px}
+ .page-head h1{font-size:32px;line-height:44px;margin:0}
+ .page-head>.button{margin-top:44px;margin-left:0}
+ .card-head>.text-button{flex-shrink:0;white-space:nowrap}
+}
+@media(prefers-reduced-motion:reduce){.sync-status[data-state="syncing"] .sync-dot{animation:none}}
+
+#update-banner{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(90vw,500px);margin:0;z-index:45;box-shadow:0 4px 20px #0002}
+@media(hover:none) and (pointer:coarse){.date-control:focus-within{outline:none}}
