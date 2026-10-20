@@ -1,4 +1,4 @@
-export const VERSION = '1.2.5';
+export const VERSION = '1.3.0';
 export function dayKey(date = new Date()) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
 export function shiftDay(day, offset) { const d = new Date(day + 'T12:00:00+08:00'); d.setUTCDate(d.getUTCDate() + offset); return dayKey(d); }
 export function isDay(day) { return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day + 'T00:00:00Z').toISOString().slice(0,10) === day; }
@@ -63,7 +63,7 @@ export function validateBackup(input) {
   for (const [date,p] of Object.entries(input.plans||{})) normalizePlan(p,date);
   return input;
 }
-export function summarize(days) { return Object.values(days).reduce((s,d)=>{s.tasks+=records(d,'task').length;s.done+=records(d,'task').filter(r=>r.body.done).length;s.workouts+=trainingItems(d,null).filter(r=>r.done).length;return s;},{tasks:0,done:0,workouts:0}); }
+export function summarize(days,plans={}) { return Object.values(days).reduce((s,d)=>{s.tasks+=taskItems(d,plans[d.date]).length;s.done+=taskItems(d,plans[d.date]).filter(r=>r.done).length;s.workouts+=trainingItems(d,null).filter(r=>r.done).length;return s;},{tasks:0,done:0,workouts:0}); }
 
 // Stable per-day exercise identity: AI plan refreshes never reset user checkmarks.
 export function exerciseId(exercise) {
@@ -86,4 +86,16 @@ export function trainingItems(doc,plan) {
     else out.set(r.id,{id:r.id,name:r.body.name,detail:'',done:r.body.status==='完成',source:'legacy',legacyBody:r.body});
   }
   return [...out.values()];
+}
+
+// AI to-dos use stable identities; saved edits/checkmarks/tombstones always win.
+export function taskId(title){return exerciseId({id:title.trim().normalize('NFKC')}).replace('exercise-','task-');}
+export function taskItems(doc,plan){
+ const all=doc?.records||{},out=new Map();
+ for(const title of plan?.tasks||[]){
+  const id=taskId(title),saved=all[id];if(saved?.deleted)continue;
+  out.set(id,{id,title,done:false,project:'',result:'',blocker:'',source:'ai',planId:plan.id,...(saved?.body||{})});
+ }
+ for(const r of Object.values(all))if(r.type==='task'&&!r.deleted)out.set(r.id,{id:r.id,...r.body});
+ return [...out.values()];
 }

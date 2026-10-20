@@ -59,3 +59,11 @@ AI计划 `data/plans/YYYY-MM-DD.json` 增加可选 `focus`（训练部位，如�
 页面直接展示AI计划，无需采纳，勾选后写入 `data/days/YYYY-MM-DD.json`；移除AI动作写 `deleted:true`，之后同步不会复活。手动动作同样存 exercise。读取完成情况时：只统计未删除 exercise 中 done=true；旧版 workout 只有 status=完成才算完成，旧数据继续保留。未勾选仅代表未确认，不能擅自认定训练失败。未来日期的勾选不作为已发生训练依据。
 
 定时AI写回仍需连接器能读取/写入目标私有数据仓库；公开lizi_life仅存代码。此版本没有创建新定时任务，也不更改已有早报与晚间提醒。
+
+## v1.3 To Do List
+
+AI `plans.tasks` 直接显示为未勾选待办，不需采纳。`taskId(title)` 使用规范化标题生成稳定记录 id；只更换计划 id 或调整顺序不会重置完成状态。同一条待办跨计划修订请保留标题；标题变化会被视作另一条建议。
+
+用户勾选、编辑后保存为 `type=task`，body 含 title、done 及可选 project/result/blocker/source/planId。删除写 `deleted:true` 墓碑；刷新不复活。用户编辑后保留原 id。手动添加不受AI计划三项限制。AI只更新 plans，不覆盖用户日记录。读取时以 `taskItems(day,plan)` 合并计划与记录，只把未删除且 done=true 的项计为已确认完成；无记录的AI待办是未确认，不代表失败。
+
+首页只显示 To Do List 和训练清单，工作页使用同一份待办记录。

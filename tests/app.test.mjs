@@ -23,7 +23,7 @@ globalThis.setInterval=()=>0;
 await import('../app/app.js');
 globalThis.setInterval=realInterval;
 await new Promise(resolve=>setImmediate(resolve));
-test('默认展示明天，预览不会创建完成记录或健康数值',()=>{assert.match(nodes['#main'].innerHTML,/明日安排/);assert.match(nodes['#main'].innerHTML,/—<small>小时/);assert.match(nodes['#main'].innerHTML,/0 \/ 0/);assert.equal(memory.size,0);assert.equal(nodes['#save-state'].textContent,'仅本机');});
+test('默认展示明天，预览不会创建完成记录或健康数值',()=>{assert.match(nodes['#main'].innerHTML,/明日安排/);assert.match(nodes['#main'].innerHTML,/To Do List/);assert.doesNotMatch(nodes['#main'].innerHTML,/class="metrics"|重要事项/);assert.equal(memory.size,0);assert.equal(nodes['#save-state'].textContent,'仅本机');});
 test('五个页面与设置在空记录下都能渲染',()=>{for(const [hash,text]of [['health','<h1>健康'],['training','<h1>训练'],['work','<h1>工作'],['review','<h1>复盘'],['settings','<h1>设置']]){location.hash='#'+hash;listeners.hashchange();assert.ok(nodes['#main'].innerHTML.includes(text),hash);}const html=nodes['#main'].innerHTML;assert.equal((html.match(/<input /g)||[]).length,1);assert.match(html,/name="token"/);assert.doesNotMatch(html,/name="repo"|name="branch"|备份|Apple/);});
 test('选中历史日期后日期控件与视图保持一致',()=>{nodes['#selected-date'].onchange({target:{value:'2026-01-01'}});assert.equal(nodes['#selected-date'].value,'2026-01-01');location.hash='#today';listeners.hashchange();assert.match(nodes['#main'].innerHTML,/历史记录/);assert.doesNotMatch(nodes['#main'].innerHTML,/明日预览/);});
 test('HTML插入的用户文本被转义',async()=>{memory.set('lizi-life:data:liziyaaa/lizi_life:main',JSON.stringify({schemaVersion:1,days:{'2026-01-01':{schemaVersion:1,date:'2026-01-01',records:{a:{id:'a',type:'task',date:'2026-01-01',updatedAt:'2026-01-01T00:00:00Z',body:{title:'<img src=x onerror=alert(1)>',done:false}}}}},base:{},dirty:[],health:{},healthDirty:[],plans:{}}));listeners.storage({key:'lizi-life:data:liziyaaa/lizi_life:main',newValue:'changed'});assert.match(nodes['#main'].innerHTML,/&lt;img src=x onerror=alert\(1\)&gt;/);assert.equal(nodes['#main'].innerHTML.includes('<img src=x'),false);});
@@ -46,4 +46,17 @@ test('设置提供当前版本和手动更新入口，手动检查绕过自动�
  const original=registration.update;registration.update=async()=>{throw new Error('offline');};navigator.onLine=false;
  click();await new Promise(r=>setImmediate(r));assert.equal(nodes['#version-status'].textContent,'离线，联网后重试');assert.equal(nodes['#check-update'].disabled,false);
  registration.update=original;registration.waiting=waiting;navigator.onLine=true;
+});
+
+
+test('AI待办在首页可勾选并持久化，工作页共享状态，删除后不复活',()=>{
+ nodes['#selected-date'].onchange({target:{value:'2026-10-20'}});location.hash='#today';listeners.hashchange();
+ let html=nodes['#main'].innerHTML;assert.match(html,/To Do List/);assert.doesNotMatch(html,/class="metrics"|重要事项/);
+ const id=html.match(/data-task-toggle="([^"]+)"/)[1];
+ listeners['document:change']({target:{dataset:{taskToggle:id},checked:true}});
+ let stored=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(stored.days['2026-10-20'].records[id].body.done,true);
+ location.hash='#work';listeners.hashchange();assert.match(nodes['#main'].innerHTML,new RegExp('data-task-toggle="'+id+'" checked'));
+ const el={dataset:{action:'remove-task',id}};listeners['document:click']({target:{closest:s=>s==='[data-action]'?el:null}});
+ listeners.hashchange();assert.ok(!nodes['#main'].innerHTML.includes('data-task-toggle="'+id+'"'));
+ stored=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(stored.days['2026-10-20'].records[id].deleted,true);
 });

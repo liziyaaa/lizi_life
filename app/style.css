@@ -188,3 +188,13 @@ html.pull-sync-enabled{overscroll-behavior-y:none}
 @media(hover:none) and (pointer:coarse){button:focus-visible,a:focus-visible{outline:none;box-shadow:none}.date-control:has(input:focus-visible){outline:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media(prefers-reduced-transparency:reduce),(prefers-contrast:more){#glass-dock{display:none!important}#mobile-nav{background:var(--paper)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#mobile-nav:before{display:none}#toast{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none}dialog::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* A single readable checklist row, with compact actions and secondary prescriptions. */
+.exercise-label .exercise-title-line{display:flex;align-items:baseline;flex-wrap:wrap;column-gap:9px;row-gap:2px}
+.exercise-title-line .task-title{flex:none;max-width:100%}
+.exercise-title-line .exercise-detail{display:inline;margin:0;white-space:nowrap;font-size:13px;color:var(--muted)}
+.exercise-row .row-actions{gap:0}
+.row-icon{width:28px;padding:4px 5px;flex:none}
+.row-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.todo-row{align-items:center}.todo-row .task-title,.todo-row .task-note{display:block}
+@media(max-width:760px){.exercise-row .exercise-label{gap:10px}.exercise-row .task-title{font-size:15px}.exercise-title-line .exercise-detail{font-size:12px}.exercise-row .exercise-title-line{column-gap:7px}}
