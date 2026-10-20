@@ -6,7 +6,7 @@ export function setupPullRefresh({indicator,canRefresh,onRefresh,root=globalThis
   const reset=()=>{start=null;distance=0;if(!refreshing){indicator.hidden=true;indicator.style?.removeProperty('--pull-offset');}};
   root.addEventListener('touchstart',event=>{
     reset();
-    if(refreshing||!canRefresh()||event.touches.length!==1||(viewport.scrollY||0)>0||event.target.closest('button,input,textarea,select,a,label,dialog,nav,[contenteditable="true"]'))return;
+    if(refreshing||!canRefresh()||event.touches.length!==1||(viewport.scrollY||0)>0||event.target.closest('button,input,textarea,select,a,label,dialog,nav,[data-swipe-row],[contenteditable="true"]'))return;
     // Nested scroll regions retain their own scrolling gestures.
     for(let el=event.target;el&&el!==root.body;el=el.parentElement){if(el.scrollHeight>el.clientHeight+1&&/auto|scroll/.test(viewport.getComputedStyle?.(el).overflowY||''))return;}
     start={x:event.touches[0].clientX,y:event.touches[0].clientY};

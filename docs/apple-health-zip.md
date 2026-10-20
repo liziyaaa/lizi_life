@@ -1,6 +1,6 @@
 # Apple 健康完整 ZIP 调研（2026-10-20）
 
-当前 v1.3.0 只支持健康 JSON 导入，尚未实现 ZIP/XML 解析。以下为已核对的格式与后续设计，不能视作现有功能。
+当前 v1.3.1 只支持健康 JSON 导入，尚未实现 ZIP/XML 解析。以下为已核对的格式与后续设计，不能视作现有功能。
 
 ## 导出与常见内容
 
@@ -25,3 +25,13 @@
 - Apple官方导出说明：https://support.apple.com/en-ca/guide/iphone/iph5ede58c3d/ios
 - 原始导出ZIP的实测目录：https://alexwlchan.net/2023/adding-watch-locations/
 - 开源转换器与原始记录字段示例：https://github.com/muquit/applehealth2csv
+
+## 解析时必须保留的区别
+
+原始心率记录应先按类型、来源、设备、时间区间、数值、单位生成稳定指纹，识别重复写入，再计算抽样统计。不能用原始行数代表独立测量次数，也不能把普通心率的平均值当作静息心率。
+
+第三方可能把全部睡眠区间写成 InBed。应展示为卧床时长，保留来源和原始语义；只有明确的 Asleep 类别才计算实际睡眠及分期。没有分期时不生成深睡、REM 或睡眠评分。
+
+默认展示最近完整的一天，同时保留每个指标自己的最后记录时间。导出日期不代表每个设备都已同步到该日。旧体重须带测量日期，不能作为当天测量。导入预览应允许选择日期范围，默认近30天，完整历史按需导入。
+
+Apple 睡眠类别定义：https://developer.apple.com/documentation/healthkit/hkcategoryvaluesleepanalysis
