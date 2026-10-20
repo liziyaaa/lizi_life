@@ -73,3 +73,8 @@ AI `plans.tasks` 直接显示为未勾选待办，不需采纳。`taskId(title)`
 `data/health/YYYY-MM-DD.json` 继续使用 `schemaVersion:1`。除旧 `metrics` 外，允许 `heartRate`（样本数、均值、范围、hourly）、`sleep`（source、basis、总/长段/短段分钟、segments）、`workouts`（设备记录）、`provenance`（每指标来源/最后记录时间）、`quality`（导出当天不完整、数据口径提示）、`importInfo`（格式、导出时间、范围、解析版本）。时区为Asia/Shanghai，字段缺失表示未知。
 
 Mi Fitness的原始InBed区间经用户确认按睡眠时长计入，basis记录为mi-fitness-duration；不能据此推断分期。普通心率统计不等于静息心率，hourly为离散样本摘要。设备workouts与手动exercise记录不可互相替代。
+
+
+## v1.5 Note
+
+日记录新增 `type=note`，body为 `{section: "work" | "training" | "review", text: string}`，text最多20000字，可为空。每个分区使用固定id `note-work`、`note-training`、`note-review`，日期由外层日记录隔离。沿用三方合并及冲突检测，不覆盖其他记录。工作旧question和复盘旧reflection在首次新Note前作为展示回退，原记录保留；空Note表示主动清空，不能回退复活旧文。健康分析数据包含分区Note，复盘复制摘要也包含原始Note记录。

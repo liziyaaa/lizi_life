@@ -1,4 +1,4 @@
-import {dayKey,shiftDay,isDay,normalizeHealth} from './core.js';
+import {dayKey,shiftDay,isDay,normalizeHealth,noteText} from './core.js';
 export const HEALTH_TYPES={HKQuantityTypeIdentifierHeartRate:'heartRate',HKCategoryTypeIdentifierSleepAnalysis:'sleep',HKQuantityTypeIdentifierStepCount:'steps',HKQuantityTypeIdentifierActiveEnergyBurned:'activeEnergyKcal',HKQuantityTypeIdentifierDistanceWalkingRunning:'distanceKm',HKQuantityTypeIdentifierDistanceCycling:'cyclingKm'};
 const chinaDay=t=>new Date(t+8*3600000).toISOString().slice(0,10);
 const round=n=>Math.round(n*100)/100;
@@ -102,5 +102,5 @@ export function mergeHealthImport(previous,incoming){
 }
 export function healthAnalysisPayload(days,health,end,lookback=14){
  const dates=Array.from({length:lookback},(_,i)=>shiftDay(end,i-lookback+1));
- return {schemaVersion:1,purpose:'健康与训练趋势分析',timezone:'Asia/Shanghai',from:dates[0],to:end,rules:['缺失不等于零；注意每项数据的实际日期与来源','普通心率是抽样统计，不当作静息心率或连续监测','Mi Fitness区间按用户确认计入睡眠时长，无分期','区分设备运动记录与手动勾选的训练动作'],days:dates.map(date=>({date,health:health[date]||null,checkins:Object.values(days[date]?.records||{}).filter(r=>r.type==='checkin'&&!r.deleted).map(r=>r.body),training:Object.values(days[date]?.records||{}).filter(r=>['exercise','workout'].includes(r.type)&&!r.deleted).map(r=>({type:r.type,...r.body}))}))};
+ return {schemaVersion:1,purpose:'健康与训练趋势分析',timezone:'Asia/Shanghai',from:dates[0],to:end,rules:['缺失不等于零；注意每项数据的实际日期与来源','普通心率是抽样统计，不当作静息心率或连续监测','Mi Fitness区间按用户确认计入睡眠时长，无分期','区分设备运动记录与手动勾选的训练动作'],days:dates.map(date=>({date,health:health[date]||null,notes:['work','training','review'].map(section=>({section,text:noteText(days[date],section)})).filter(n=>n.text),checkins:Object.values(days[date]?.records||{}).filter(r=>r.type==='checkin'&&!r.deleted).map(r=>r.body),training:Object.values(days[date]?.records||{}).filter(r=>['exercise','workout'].includes(r.type)&&!r.deleted).map(r=>({type:r.type,...r.body}))}))};
 }

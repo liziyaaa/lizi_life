@@ -1,4 +1,4 @@
-export const VERSION = '1.4.1';
+export const VERSION = '1.5.0';
 export function dayKey(date = new Date()) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
 export function shiftDay(day, offset) { const d = new Date(day + 'T12:00:00+08:00'); d.setUTCDate(d.getUTCDate() + offset); return dayKey(d); }
 export function isDay(day) { return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day + 'T00:00:00Z').toISOString().slice(0,10) === day; }
@@ -6,7 +6,7 @@ export const emptyDay = date => ({ schemaVersion: 1, date, records: {} });
 const equal = (a,b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 export function validateDay(doc, date) {
   if (!doc || doc.schemaVersion !== 1 || doc.date !== date || !doc.records || Array.isArray(doc.records) || typeof doc.records !== 'object') throw new Error('云端日记录格式不正确，未覆盖本机数据');
-  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || ['__proto__','constructor','prototype'].includes(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','exercise','question','reflection','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
+  for (const [id,r] of Object.entries(doc.records)) if (!/^[A-Za-z0-9_-]{1,180}$/.test(id) || ['__proto__','constructor','prototype'].includes(id) || !r || r.id !== id || r.date !== date || !['checkin','task','workout','exercise','question','reflection','note','health','planResponse'].includes(r.type) || typeof r.body !== 'object' || !r.body || !Number.isFinite(Date.parse(r.updatedAt))) throw new Error('云端记录存在无效字段');
   for (const r of Object.values(doc.records)) {
     const b=r.body;
     if (r.type==='exercise' && (typeof b.name!=='string' || !b.name.trim() || typeof b.done!=='boolean' || (b.detail!==undefined && typeof b.detail!=='string'))) throw new Error('动作清单格式不正确');
@@ -14,6 +14,7 @@ export function validateDay(doc, date) {
     if (r.type==='workout' && (typeof b.name!=='string' || !['完成','部分完成','未完成'].includes(b.status) || !Array.isArray(b.sets) || b.sets.length>20 || b.sets.some(s=>!s || !Number.isFinite(+s.reps) || +s.reps<1 || +s.reps>1000 || s.weight!=='' && (!Number.isFinite(+s.weight) || +s.weight<0 || +s.weight>1500)))) throw new Error('训练记录格式不正确');
     if (['reflection','question'].includes(r.type) && typeof b.text!=='string') throw new Error('文字记录格式不正确');
     if (r.type==='checkin' && ['energy','fatigue','soreness','mood'].some(k=>!Number.isInteger(b[k])||b[k]<1||b[k]>5)) throw new Error('状态记录格式不正确');
+    if (r.type==='note' && (!['work','training','review'].includes(b.section)||typeof b.text!=='string'||b.text.length>20000)) throw new Error('Note记录格式不正确');
     if (r.type==='health') normalizeHealth(b);
   }
   return doc;
@@ -108,4 +109,12 @@ export function taskItems(doc,plan){
  }
  for(const r of Object.values(all))if(r.type==='task'&&!r.deleted)out.set(r.id,{id:r.id,...r.body});
  return [...out.values()];
+}
+
+// Each section has one free-form note per day. Legacy text remains readable.
+export function noteText(doc,section){
+ const note=records(doc,'note').find(r=>r.body.section===section);if(note)return note.body.text;
+ if(section==='work')return records(doc,'question').map(r=>r.body.text).join('\n\n');
+ if(section==='review')return records(doc,'reflection').at(-1)?.body.text||'';
+ return '';
 }

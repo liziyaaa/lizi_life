@@ -218,3 +218,18 @@ html.pull-sync-enabled{overscroll-behavior-y:none}
 .health-import-progress progress{width:100%;height:6px;accent-color:var(--tint)}
 .health-import-progress p,.health-import-summary{font-size:15px;line-height:1.7}
 @media(max-width:760px){.health-summary-row{gap:12px}.health-summary-row>strong{font-size:21px}.health-metric-note{max-width:205px}.health-summary-row strong small{max-width:120px}}
+
+/* Compact rows retain a full 44px tap target. */
+.swipe-row>.exercise-row{padding:7px 0;min-height:58px}
+#import-health-button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.page-head{padding-right:120px}.has-header-action .page-head{padding-right:164px}
+.note-card .card-head{margin-bottom:10px}
+.note-editor{display:block;width:100%;min-height:128px;max-height:70dvh;margin:0;padding:0;border:0;border-radius:0;background:transparent;resize:vertical;font-size:16px;line-height:1.7;overflow-wrap:anywhere;-webkit-appearance:none}
+.note-editor:focus-visible{outline:none}
+.metric-date{display:block;margin-top:5px;min-height:16px;font-size:11px;color:var(--muted)}
+.review-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:4px 0 20px;border-bottom:.5px solid var(--line)}
+.review-stats>div{display:grid;gap:3px}.review-stats strong{font-size:27px;font-weight:600}.review-stats span{color:var(--muted);font-size:12px}
+.review-day{display:grid;grid-template-columns:48px minmax(0,1fr) 12px;align-items:center;gap:10px;min-height:52px;width:100%;padding:10px 0;border:0;border-bottom:.5px solid var(--line);background:transparent;text-align:left;font-size:14px}
+.review-day:last-child{border-bottom:0}.review-day>span:nth-child(2){font-size:12px;color:var(--muted);text-align:right}.review-day svg{width:12px;height:12px;fill:none;stroke:var(--muted);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.review-tools{display:flex;gap:24px;padding:0 3px}
+@media(max-width:760px){.page-head{padding-right:104px}.has-header-action .page-head{padding-right:144px}.review-stats strong{font-size:24px}}

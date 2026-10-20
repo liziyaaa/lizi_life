@@ -10,7 +10,7 @@ class Element {
  querySelectorAll(){return [];}
  insertAdjacentHTML(_,html){this.innerHTML=html+this.innerHTML;}
 }
-const nodes=Object.fromEntries(['nav','mobile-nav','selected-date','date-control','date-slot','save-state','date-label','pull-refresh','sync-button','settings-button','main','toast','modal','modal-title','modal-save','app-version','version-status','check-update','install-update','modal-body','json-file','close-modal','update-banner','apply-update'].map(k=>['#'+k,new Element()]));
+const nodes=Object.fromEntries(['nav','mobile-nav','selected-date','date-control','date-slot','save-state','date-label','pull-refresh','sync-button','settings-button','import-health-button','main','toast','modal','modal-title','modal-save','app-version','version-status','check-update','install-update','modal-body','json-file','close-modal','update-banner','apply-update'].map(k=>['#'+k,new Element()]));
 globalThis.document={body:new Element(),hidden:false,querySelector:s=>nodes[s]||null,querySelectorAll:()=>[],addEventListener:(e,f)=>{listeners['document:'+e]=f;}};
 globalThis.localStorage=globalThis.sessionStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
 let reloads=0;globalThis.location={hash:'',reload(){reloads++;}};
@@ -61,11 +61,11 @@ test('AI待办在首页可勾选并持久化，工作页共享状态，删除后
  stored=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(stored.days['2026-10-20'].records[id].deleted,true);
 });
 
-test('健康页只显示简洁摘要，保留各指标实际日期与小米睡眠时长，并提供桥梁入口',()=>{
+test('健康页仅保留四项指标和七天趋势，导入移到页头',()=>{
  const health={'2026-10-19':{schemaVersion:1,date:'2026-10-19',generatedAt:'2026-10-20T06:21:23Z',source:'Apple Health ZIP',metrics:{sleepMinutes:420,averageHeartRate:72},provenance:{sleep:{source:'Mi Fitness',lastRecordAt:'2026-10-19T05:19:00Z'},heartRate:{source:'Mi Fitness',lastRecordAt:'2026-10-19T14:00:00Z'}},heartRate:{count:48,average:72,min:55,max:110,hourly:[]}},'2026-10-20':{schemaVersion:1,date:'2026-10-20',generatedAt:'2026-10-20T06:21:23Z',source:'Apple Health ZIP',metrics:{steps:5000},quality:{partialDay:true,notes:[]}}};
  memory.set('lizi-life:data:liziyaaa/lizi_life:main',JSON.stringify({schemaVersion:1,days:{},health,dirty:[],healthDirty:[],plans:{}}));listeners.storage({key:'lizi-life:data:liziyaaa/lizi_life:main',newValue:'changed'});
- nodes['#selected-date'].onchange({target:{value:'2026-10-20'}});location.hash='#health';listeners.hashchange();const html=nodes['#main'].innerHTML;assert.match(html,/7小时0分/);assert.match(html,/10\/19/);assert.match(html,/48次采样/);assert.match(html,/当日数据未完整/);assert.match(html,/data-action="import-health"/);assert.match(html,/data-action="copy-health-summary"/);assert.doesNotMatch(html,/静息心率|体重|七天睡眠|七天活动|ZIP 导入尚未/);
- const el={dataset:{action:'import-health'}};listeners['document:click']({target:{closest:s=>s==='[data-action]'?el:null}});assert.match(nodes['#modal-body'].innerHTML,/name="archive"/);assert.match(nodes['#modal-body'].innerHTML,/name="from"/);
+ nodes['#selected-date'].onchange({target:{value:'2026-10-20'}});location.hash='#health';listeners.hashchange();const html=nodes['#main'].innerHTML;assert.match(html,/7.0/);assert.match(html,/10\/19/);assert.match(html,/平均心率/);assert.match(html,/体重/);assert.match(html,/七天睡眠/);assert.match(html,/七天活动/);assert.doesNotMatch(html,/主观感受|交给 ChatGPT|data-action="import-health"|copy-health-summary|manual-health|health-help|class="notice/);assert.equal(nodes['#import-health-button'].hidden,false);assert.equal(nodes['#settings-button'].hidden,true);
+ const el={dataset:{action:'import-health'}};listeners['document:click']({target:{closest:s=>s==='[data-action]'?el:null}});assert.match(nodes['#modal-body'].innerHTML,/name="archive"/);assert.match(nodes['#modal-body'].innerHTML,/name="from"/);assert.match(nodes['#modal-body'].innerHTML,/accept=".zip,application\/zip,application\/x-zip-compressed"/);assert.doesNotMatch(nodes['#modal-body'].innerHTML,/\.json|\.xml/);
 });
 
 test('手动补记体重不丢失导入心率与睡眠细节；改睡眠时移除旧区间',async()=>{
@@ -78,4 +78,19 @@ test('手动补记体重不丢失导入心率与睡眠细节；改睡眠时移�
   let saved=JSON.parse(memory.get(key)).health['2026-10-19'];assert.equal(saved.metrics.weightKg,70);assert.equal(saved.heartRate.count,48);assert.equal(saved.sleep.totalMinutes,420);assert.equal(saved.provenance.heartRate.source,'Mi Fitness');
   form.values.set('sleepMinutes','400');open();await submit({preventDefault(){}});saved=JSON.parse(memory.get(key)).health['2026-10-19'];assert.equal(saved.metrics.sleepMinutes,400);assert.equal(saved.sleep,undefined);assert.equal(saved.heartRate.count,48);
  }finally{nodes['#modal-body'].querySelector=originalQuery;globalThis.FormData=originalData;nodes['#modal'].open=false;}
+});
+
+
+test('各页只在指定位置显示设置或导入，工作训练下方为无提示的Note',()=>{
+ for(const page of ['today','health','training','work','review','settings']){location.hash='#'+page;listeners.hashchange();assert.equal(nodes['#settings-button'].hidden,page!=='review',page);assert.equal(nodes['#import-health-button'].hidden,page!=='health',page);if(['work','training'].includes(page)){assert.match(nodes['#main'].innerHTML,/data-note-section="/);assert.doesNotMatch(nodes['#main'].innerHTML,/留给下一次对话|问题先记下来|placeholder=/);}}
+ location.hash='#review';listeners.hashchange();assert.match(nodes['#main'].innerHTML,/近七天/);assert.match(nodes['#main'].innerHTML,/data-note-section="review"/);assert.doesNotMatch(nodes['#main'].innerHTML,/To Do List|训练计划|尚无晚间复盘|留下足迹|写晚间复盘/);
+});
+
+test('Note输入即保存，工作与训练分开，日期隔离且重绘后保留并转义',()=>{
+ nodes['#selected-date'].onchange({target:{value:'2026-02-02'}});location.hash='#work';listeners.hashchange();
+ listeners['document:input']({target:{dataset:{noteSection:'work'},value:'测试记录\n<textarea>安全文本</textarea>'}});
+ let data=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(data.days['2026-02-02'].records['note-work'].body.text,'测试记录\n<textarea>安全文本</textarea>');assert.ok(data.dirty.includes('2026-02-02'));listeners.hashchange();assert.match(nodes['#main'].innerHTML,/&lt;textarea&gt;安全文本&lt;\/textarea&gt;/);
+ location.hash='#training';listeners.hashchange();assert.doesNotMatch(nodes['#main'].innerHTML,/安全文本/);listeners['document:input']({target:{dataset:{noteSection:'training'},value:'另一份模拟记录'}});
+ nodes['#selected-date'].onchange({target:{value:'2026-02-03'}});assert.doesNotMatch(nodes['#main'].innerHTML,/另一份模拟记录/);nodes['#selected-date'].onchange({target:{value:'2026-02-02'}});assert.match(nodes['#main'].innerHTML,/另一份模拟记录/);
+ listeners['document:input']({target:{dataset:{noteSection:'training'},value:''}});data=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(data.days['2026-02-02'].records['note-training'].body.text,'');
 });
