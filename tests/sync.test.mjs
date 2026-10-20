@@ -28,3 +28,23 @@ test('多个不明确的私有仓库时不猜测写入目标',async()=>{
  const store=new GithubStore({token:'test'},async()=>({ok:true,status:200,json:async()=>[{private:true,name:'a'},{private:true,name:'b'}]}));
  await assert.rejects(()=>store.discoverPrivate(),/仅授权一个/);
 });
+
+test('默认 fetch 保持浏览器全局调用上下文，保存和读写均可请求',async()=>{
+ const original=globalThis.fetch;
+ const calls=[];
+ globalThis.fetch=async function(url,options){
+  assert.equal(this,globalThis,'Safari native fetch requires Window receiver');
+  calls.push({url,options});
+  if(url.includes('/user/repos'))return response(200,[{private:true,name:'lizi_life_data',full_name:'test/private'}]);
+  if(url.includes('/contents/'))return options.method==='PUT'?response(201,{}):response(404,{});
+  return response(200,{private:true});
+ };
+ try{
+  const store=new GithubStore(config);
+  assert.equal((await store.discoverPrivate()).full_name,'test/private');
+  await store.verifyPrivate();
+  await store.syncDay(date,emptyDay(date),local());
+  assert.equal(calls.length,4);
+  assert.equal(calls.at(-1).options.method,'PUT');
+ }finally{globalThis.fetch=original;}
+});

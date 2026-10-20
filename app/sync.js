@@ -1,6 +1,7 @@
 import { emptyDay,validateDay,mergeDays } from './core.js';
 export class GithubStore {
-  constructor({repo,branch,token}, fetcher=fetch) {this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;}
+  // Safari requires native fetch to be called with its global receiver.
+  constructor({repo,branch,token}, fetcher=globalThis.fetch.bind(globalThis)) {this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;}
   async api(path,options={}) {
     const response=await this.fetcher('https://api.github.com'+path,{...options,cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+this.token,'X-GitHub-Api-Version':'2022-11-28',...options.headers}});
     if (response.status===404) return null;
