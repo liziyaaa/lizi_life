@@ -1,4 +1,4 @@
-export const VERSION = '1.3.1';
+export const VERSION = '1.4.1';
 export function dayKey(date = new Date()) { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date); }
 export function shiftDay(day, offset) { const d = new Date(day + 'T12:00:00+08:00'); d.setUTCDate(d.getUTCDate() + offset); return dayKey(d); }
 export function isDay(day) { return /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(day)) && new Date(day + 'T00:00:00Z').toISOString().slice(0,10) === day; }
@@ -36,7 +36,7 @@ export function records(doc,type) { return Object.values(doc?.records || {}).fil
 export function normalizeHealth(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input) || !isDay(input.date)) throw new Error('健康 JSON 需要 date（YYYY-MM-DD）');
   if (!input.metrics || typeof input.metrics !== 'object' || Array.isArray(input.metrics)) throw new Error('健康 JSON 需要 metrics 对象，请参考设置里的示例');
-  const limits={sleepMinutes:[0,1440],steps:[0,200000],restingHeartRate:[15,250],averageHeartRate:[15,250],weightKg:[10,400],activeEnergyKcal:[0,20000]};
+  const limits={sleepMinutes:[0,1440],steps:[0,200000],restingHeartRate:[15,250],averageHeartRate:[15,250],inBedMinutes:[0,1440],workoutMinutes:[0,10080],distanceKm:[0,2000],cyclingKm:[0,2000],weightKg:[10,400],activeEnergyKcal:[0,20000]};
   const metrics={};
   for (const [key,[min,max]] of Object.entries(limits)) {
     const v=input.metrics[key];
@@ -47,7 +47,17 @@ export function normalizeHealth(input) {
   if (!Object.keys(metrics).length) throw new Error('至少需要一项有效健康指标');
   if (!input.generatedAt || !Number.isFinite(Date.parse(input.generatedAt))) throw new Error('请提供有效的 generatedAt（数据生成时间）');
   if (Date.parse(input.generatedAt)>Date.now()+300000) throw new Error('数据生成时间不能在未来');
-  return {schemaVersion:1,date:input.date,generatedAt:new Date(input.generatedAt).toISOString(),source:String(input.source||'手动导入').slice(0,100),metrics,coverage:input.coverage && typeof input.coverage==='object'?{start:String(input.coverage.start||''),end:String(input.coverage.end||'')}:null};
+  const out={schemaVersion:1,date:input.date,generatedAt:new Date(input.generatedAt).toISOString(),source:String(input.source||'手动导入').slice(0,100),metrics,coverage:input.coverage && typeof input.coverage==='object'?{start:String(input.coverage.start||''),end:String(input.coverage.end||'')}:null};
+  const number=(v,min,max)=>{if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max)throw new Error('健康摘要数值无效');return v;};
+  const time=v=>{if(typeof v!=='string'||!Number.isFinite(Date.parse(v)))throw new Error('健康摘要时间无效');return new Date(v).toISOString();};
+  const text=v=>String(v||'').slice(0,100);
+  if(input.heartRate){const h=input.heartRate;const count=number(h.count,1,1000000);if(!Number.isInteger(count))throw new Error('心率样本数量无效');const clean={count,average:number(h.average,15,250),min:number(h.min,15,250),max:number(h.max,15,250)};if(clean.min>clean.max||clean.average<clean.min||clean.average>clean.max)throw new Error('心率范围无效');if(!Array.isArray(h.hourly)||h.hourly.length>24)throw new Error('心率小时摘要无效');const hours=new Set();clean.hourly=h.hourly.map(v=>{const hour=number(v.hour,0,23);if(!Number.isInteger(hour)||hours.has(hour))throw new Error('心率小时重复');hours.add(hour);return {hour,count:number(v.count,1,1000000),average:number(v.average,15,250),min:number(v.min,15,250),max:number(v.max,15,250)};});out.heartRate=clean;}
+  if(input.sleep){const z=input.sleep;if(!['asleep','mi-fitness-duration','inBed'].includes(z.basis)||!Array.isArray(z.segments)||z.segments.length>100)throw new Error('睡眠摘要无效');out.sleep={source:text(z.source),basis:z.basis,totalMinutes:number(z.totalMinutes,0,1440),mainMinutes:number(z.mainMinutes,0,1440),napMinutes:number(z.napMinutes,0,1440),segments:z.segments.map(v=>{const start=time(v.start),end=time(v.end);if(end<start)throw new Error('睡眠区间无效');return {start,end,minutes:number(v.minutes,0,1440)};})};}
+  if(input.workouts){if(!Array.isArray(input.workouts)||input.workouts.length>100)throw new Error('运动摘要无效');out.workouts=input.workouts.map(w=>{const start=time(w.start),end=time(w.end);if(end<start)throw new Error('运动区间无效');const v={type:text(w.type),source:text(w.source),start,end,durationMinutes:number(w.durationMinutes,0,1440)};if(w.energyKcal!==undefined)v.energyKcal=number(w.energyKcal,0,20000);if(w.distanceKm!==undefined)v.distanceKm=number(w.distanceKm,0,2000);return v;});}
+  if(input.provenance){out.provenance={};for(const key of ['heartRate','sleep','steps','activeEnergyKcal','distanceKm','cyclingKm','workouts']){const v=input.provenance[key];if(v)out.provenance[key]={source:text(v.source),lastRecordAt:time(v.lastRecordAt)};}}
+  if(input.quality)out.quality={partialDay:input.quality.partialDay===true,notes:Array.isArray(input.quality.notes)?input.quality.notes.slice(0,10).map(v=>String(v).slice(0,300)):[]};
+  if(input.importInfo){const v=input.importInfo;if(v.format!=='apple-health-xml'||!isDay(v.from)||!isDay(v.to))throw new Error('导入来源无效');out.importInfo={format:v.format,exportedAt:time(v.exportedAt),from:v.from,to:v.to,parserVersion:1};}
+  return out;
 }
 export function normalizePlan(p,date) {
   if (!p || p.schemaVersion!==1 || p.date!==date || typeof p.id!=='string' || !/^[A-Za-z0-9_-]{1,150}$/.test(p.id) || typeof p.summary!=='string') throw new Error('计划 JSON 格式不正确');

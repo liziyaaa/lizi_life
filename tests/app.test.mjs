@@ -60,3 +60,22 @@ test('AI待办在首页可勾选并持久化，工作页共享状态，删除后
  listeners.hashchange();assert.ok(!nodes['#main'].innerHTML.includes('data-task-toggle="'+id+'"'));
  stored=JSON.parse(memory.get('lizi-life:data:liziyaaa/lizi_life:main'));assert.equal(stored.days['2026-10-20'].records[id].deleted,true);
 });
+
+test('健康页只显示简洁摘要，保留各指标实际日期与小米睡眠时长，并提供桥梁入口',()=>{
+ const health={'2026-10-19':{schemaVersion:1,date:'2026-10-19',generatedAt:'2026-10-20T06:21:23Z',source:'Apple Health ZIP',metrics:{sleepMinutes:420,averageHeartRate:72},provenance:{sleep:{source:'Mi Fitness',lastRecordAt:'2026-10-19T05:19:00Z'},heartRate:{source:'Mi Fitness',lastRecordAt:'2026-10-19T14:00:00Z'}},heartRate:{count:48,average:72,min:55,max:110,hourly:[]}},'2026-10-20':{schemaVersion:1,date:'2026-10-20',generatedAt:'2026-10-20T06:21:23Z',source:'Apple Health ZIP',metrics:{steps:5000},quality:{partialDay:true,notes:[]}}};
+ memory.set('lizi-life:data:liziyaaa/lizi_life:main',JSON.stringify({schemaVersion:1,days:{},health,dirty:[],healthDirty:[],plans:{}}));listeners.storage({key:'lizi-life:data:liziyaaa/lizi_life:main',newValue:'changed'});
+ nodes['#selected-date'].onchange({target:{value:'2026-10-20'}});location.hash='#health';listeners.hashchange();const html=nodes['#main'].innerHTML;assert.match(html,/7小时0分/);assert.match(html,/10\/19/);assert.match(html,/48次采样/);assert.match(html,/当日数据未完整/);assert.match(html,/data-action="import-health"/);assert.match(html,/data-action="copy-health-summary"/);assert.doesNotMatch(html,/静息心率|体重|七天睡眠|七天活动|ZIP 导入尚未/);
+ const el={dataset:{action:'import-health'}};listeners['document:click']({target:{closest:s=>s==='[data-action]'?el:null}});assert.match(nodes['#modal-body'].innerHTML,/name="archive"/);assert.match(nodes['#modal-body'].innerHTML,/name="from"/);
+});
+
+test('手动补记体重不丢失导入心率与睡眠细节；改睡眠时移除旧区间',async()=>{
+ const key='lizi-life:data:liziyaaa/lizi_life:main',data=JSON.parse(memory.get(key));const h=data.health['2026-10-19'];h.sleep={source:'Mi Fitness',basis:'mi-fitness-duration',totalMinutes:420,mainMinutes:400,napMinutes:20,segments:[]};memory.set(key,JSON.stringify(data));listeners.storage({key,newValue:'changed'});nodes['#selected-date'].onchange({target:{value:'2026-10-19'}});
+ const originalQuery=nodes['#modal-body'].querySelector,originalData=globalThis.FormData;let submit;
+ const form={values:new Map([['sleepMinutes','420'],['steps',''],['restingHeartRate',''],['weightKg','70']]),querySelector:()=>({textContent:'保存补记'}),addEventListener:(name,f)=>{if(name==='submit')submit=f;}};
+ nodes['#modal-body'].querySelector=s=>s==='form'?form:null;nodes['#modal'].showModal=()=>{nodes['#modal'].open=true;};nodes['#modal'].close=()=>{nodes['#modal'].open=false;};globalThis.FormData=function(f){return f.values;};
+ try{
+  const open=()=>listeners['document:click']({target:{closest:s=>s==='[data-action]'?{dataset:{action:'manual-health'}}:null}});open();await submit({preventDefault(){}});
+  let saved=JSON.parse(memory.get(key)).health['2026-10-19'];assert.equal(saved.metrics.weightKg,70);assert.equal(saved.heartRate.count,48);assert.equal(saved.sleep.totalMinutes,420);assert.equal(saved.provenance.heartRate.source,'Mi Fitness');
+  form.values.set('sleepMinutes','400');open();await submit({preventDefault(){}});saved=JSON.parse(memory.get(key)).health['2026-10-19'];assert.equal(saved.metrics.sleepMinutes,400);assert.equal(saved.sleep,undefined);assert.equal(saved.heartRate.count,48);
+ }finally{nodes['#modal-body'].querySelector=originalQuery;globalThis.FormData=originalData;nodes['#modal'].open=false;}
+});

@@ -207,3 +207,14 @@ html.pull-sync-enabled{overscroll-behavior-y:none}
 .swipe-edit{background:#8e8e93}.swipe-delete{background:#ff3b30}
 .swipe-row:focus-visible{outline:2px solid var(--tint);outline-offset:3px;border-radius:8px}
 @media(max-width:760px){.exercise-row .exercise-label{gap:10px}.exercise-row .task-title{font-size:15px}.exercise-title-line .exercise-detail{font-size:12px}.exercise-row .exercise-title-line{column-gap:7px}}
+
+.health-summary-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:84px;padding:16px 0;border-bottom:.5px solid var(--line)}
+.health-summary-row:last-child{border-bottom:0;padding-bottom:0}
+.health-summary-row>div{min-width:0;flex:1}.health-metric-name{display:block;font-size:16px;font-weight:500}
+.health-metric-note{display:block;margin-top:5px;font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.health-summary-row>strong{flex:none;font-size:23px;font-weight:600;letter-spacing:-.5px;text-align:right}
+.health-summary-row strong small{display:block;margin-top:4px;font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.health-tools{display:flex;gap:20px;margin-top:12px}.health-bridge p{font-size:14px;line-height:1.6;margin:0 0 18px}
+.health-import-progress progress{width:100%;height:6px;accent-color:var(--tint)}
+.health-import-progress p,.health-import-summary{font-size:15px;line-height:1.7}
+@media(max-width:760px){.health-summary-row{gap:12px}.health-summary-row>strong{font-size:21px}.health-metric-note{max-width:205px}.health-summary-row strong small{max-width:120px}}

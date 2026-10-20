@@ -67,3 +67,9 @@ AI `plans.tasks` 直接显示为未勾选待办，不需采纳。`taskId(title)`
 用户勾选、编辑后保存为 `type=task`，body 含 title、done 及可选 project/result/blocker/source/planId。删除写 `deleted:true` 墓碑；刷新不复活。用户编辑后保留原 id。手动添加不受AI计划三项限制。AI只更新 plans，不覆盖用户日记录。读取时以 `taskItems(day,plan)` 合并计划与记录，只把未删除且 done=true 的项计为已确认完成；无记录的AI待办是未确认，不代表失败。
 
 首页只显示 To Do List 和训练清单，工作页使用同一份待办记录。
+
+## v1.4 健康分析桥梁
+
+`data/health/YYYY-MM-DD.json` 继续使用 `schemaVersion:1`。除旧 `metrics` 外，允许 `heartRate`（样本数、均值、范围、hourly）、`sleep`（source、basis、总/长段/短段分钟、segments）、`workouts`（设备记录）、`provenance`（每指标来源/最后记录时间）、`quality`（导出当天不完整、数据口径提示）、`importInfo`（格式、导出时间、范围、解析版本）。时区为Asia/Shanghai，字段缺失表示未知。
+
+Mi Fitness的原始InBed区间经用户确认按睡眠时长计入，basis记录为mi-fitness-duration；不能据此推断分期。普通心率统计不等于静息心率，hourly为离散样本摘要。设备workouts与手动exercise记录不可互相替代。

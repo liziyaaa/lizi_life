@@ -1,5 +1,5 @@
-const CACHE='lizi-life-v1.3.1';
-const ASSETS=['./','./index.html','./style.css','./app.js','./core.js','./sync.js','./pull-refresh.js','./swipe-actions.js','./updates.js','./glass.js','./THIRD_PARTY_NOTICES.txt','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
+const CACHE='lizi-life-v1.4.1';
+const ASSETS=['./','./index.html','./style.css','./app.js','./core.js','./sync.js','./pull-refresh.js','./swipe-actions.js','./health-data.js','./health-zip.js','./health-worker.js','./fflate.js','./FFLATE_LICENSE.txt','./updates.js','./glass.js','./THIRD_PARTY_NOTICES.txt','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(path=>new Request(path,{cache:'reload'})))));});
 self.addEventListener('message',e=>{if(e.data?.type==='SKIP_WAITING')self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('lizi-life-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
