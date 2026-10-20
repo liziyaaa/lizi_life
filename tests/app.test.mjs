@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 const memory=new Map(),listeners={};
 class Element {
  constructor(){this.innerHTML='';this.textContent='';this.value='';this.disabled=false;this.open=false;this.dataset={};this.classList={add(){},remove(){},toggle(){}};this.handlers={};}
+ remove(){}
+ append(child){this.child=child;}
  addEventListener(event,handler){this.handlers[event]=handler;}
  querySelector(){return null;}
  querySelectorAll(){return [];}
  insertAdjacentHTML(_,html){this.innerHTML=html+this.innerHTML;}
 }
-const nodes=Object.fromEntries(['nav','mobile-nav','selected-date','save-state','date-label','pull-refresh','sync-button','settings-button','main','toast','modal','modal-title','modal-save','app-version','version-status','check-update','install-update','modal-body','json-file','close-modal','update-banner','apply-update'].map(k=>['#'+k,new Element()]));
+const nodes=Object.fromEntries(['nav','mobile-nav','selected-date','date-control','date-slot','save-state','date-label','pull-refresh','sync-button','settings-button','main','toast','modal','modal-title','modal-save','app-version','version-status','check-update','install-update','modal-body','json-file','close-modal','update-banner','apply-update'].map(k=>['#'+k,new Element()]));
 globalThis.document={body:new Element(),hidden:false,querySelector:s=>nodes[s]||null,querySelectorAll:()=>[],addEventListener:(e,f)=>{listeners['document:'+e]=f;}};
 globalThis.localStorage=globalThis.sessionStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
 let reloads=0;globalThis.location={hash:'',reload(){reloads++;}};

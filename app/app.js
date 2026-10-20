@@ -7,6 +7,7 @@ const $=(q,el=document)=>el.querySelector(q), $$=(q,el=document)=>[...el.querySe
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const showTime=v=>v&&Number.isFinite(Date.parse(v))?new Date(v).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'尚无';
 const dateText=d=>new Date(d+'T12:00:00+08:00').toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'});
+const nativeDateControl=$('#date-control');
 let storageBroken=false;
 function readStorage(key,fallback){try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):fallback;}catch{storageBroken=true;return fallback;}}
 let config=readStorage('lizi-life:config',{repo:'liziyaaa/lizi_life',branch:'main',remember:false});
@@ -23,7 +24,7 @@ function navIcon(key){const paths={today:'<rect x="3" y="5" width="18" height="1
 const doc=()=>state.days[selected]||emptyDay(selected);
 const list=t=>records(doc(),t);
 function save(){if(externalChange){toast('另一窗口已有新记录，已停止写入，请导出当前内容后刷新');return false;}try{localStorage.setItem(storageKey(),JSON.stringify(state));storageBroken=false;updateStatus();return true;}catch{storageBroken=true;updateStatus();toast('本机保存失败，可能存储已满。请立即导出备份');return false;}}
-function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),6500);}
+function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),message.length>30?6500:3200);}
 function updateStatus(){
  document.body.classList.toggle('syncing',busy);
  const pending=state.dirty.length+state.healthDirty.length;
@@ -31,7 +32,7 @@ function updateStatus(){
  const time=state.lastSync?new Date(state.lastSync).toLocaleTimeString('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false}):'';
  const text=storageBroken?'保存失败':busy?'同步中':syncError?'同步失败':pending&&token?'待同步':state.lastSync&&token?'已同步 '+time:'仅本机';
  $('#save-state').textContent=text;
- const button=$('#sync-button');button.disabled=busy;button.dataset.state=status;button.title=syncError||text;button.setAttribute?.('aria-label',text+'，点击同步');
+ const button=$('#sync-button');button.disabled=busy;button.dataset.state=status;button.title=syncError||text;button.setAttribute?.('aria-label',text+'，点击同步');paintUpdateStatus();
 }
 function change(type,body,id){if(externalChange)throw new Error('另一窗口已更新记录，请关闭编辑并重新打开后保存');const d=state.days[selected]||emptyDay(selected);const r=makeRecord(type,selected,body,id);d.records[r.id]=r;state.days[selected]=d;markDirty(selected);return r;}
 function markDirty(date){if(!state.dirty.includes(date))state.dirty.push(date);save();schedule();}
@@ -51,7 +52,7 @@ function modal(title,html,onSubmit){
 }
 const close=()=>$('#modal').close();
 function empty(title,description,button='',action=''){return `<div class="empty"><div class="empty-icon">◌</div><strong>${escape(title)}</strong>${button?`<div><button class="button secondary small" data-action="${action}">${button}</button></div>`:''}</div>`;}
-function heading(english,title,sub,extra=''){return `<div class="page-head"><h1>${title}</h1>${extra}</div>`;}
+function heading(english,title,sub,extra=''){return `<div class="page-head"><div class="page-title-row"><h1>${title}</h1><span id="date-slot"></span></div>${extra}</div>`;}
 function metric(label,value,unit,foot,icon){return `<div class="metric"><div class="metric-top">${label}<span class="metric-icon" aria-hidden="true">${icon}</span></div><div class="metric-value">${escape(value)}<small>${unit}</small></div></div>`;}
 function healthFor(date=selected){const imported=records(state.days[date],'health').at(-1)?.body;const remote=state.health[date];if(!imported)return remote;if(!remote)return imported;return Date.parse(imported.generatedAt)>Date.parse(remote.generatedAt)?imported:remote;}
 function latestSleep(){const h=healthFor(selected);return h?.metrics?.sleepMinutes;}
@@ -74,7 +75,7 @@ const planExample=()=>({schemaVersion:1,id:'plan-'+selected+'-1',date:selected,g
 function settingsPage(){return heading('','设置','')+`<div class="card settings-card"><form id="connection-form"><label class="field">GitHub 密钥<input name="token" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required value="${escape(token)}" placeholder="粘贴密钥"></label><div class="form-actions"><button class="button" type="submit">保存</button></div></form></div><div class="card settings-card version-card"><div class="settings-row"><span>当前版本</span><span id="app-version" class="secondary-label">${VERSION}</span></div><div class="settings-row"><span id="version-status" class="secondary-label" role="status" aria-live="polite">${escape(updateMessage)}</span><button id="check-update" class="text-button" data-action="check-update" ${checkingUpdate?'disabled':''}>${checkingUpdate?'检查中…':'检查更新'}</button></div><button id="install-update" class="button update-install" data-action="apply-update" ${updateReady?'':'hidden'}>立即更新</button></div>`;}
 
 
-function render(){const valid=[...tabs.map(t=>t[0]),'settings'];if(!valid.includes(page))page='today';for(const nav of ['#nav','#mobile-nav'])$(nav).innerHTML=tabs.map(([key,icon,name])=>`<a class="nav-item ${page===key?'active':''}" href="#${key}" ${page===key?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${navIcon(key)}</span><span>${name}</span></a>`).join('');$('#selected-date').value=selected;$('#date-label').textContent=dateText(selected);$('#main').innerHTML=({today:todayPage,health:healthPage,training:trainingPage,work:workPage,review:reviewPage,settings:settingsPage}[page])();if(storageBroken)$('#main').insertAdjacentHTML('afterbegin','<div class="notice">浏览器存储读取或保存失败。请先导出备份，避免关闭后丢失记录。</div>');updateStatus();$('#connection-form')?.addEventListener('submit',saveConnection);refreshGlass();}
+function render(){const valid=[...tabs.map(t=>t[0]),'settings'];if(!valid.includes(page))page='today';for(const nav of ['#nav','#mobile-nav'])$(nav).innerHTML=tabs.map(([key,icon,name])=>`<a class="nav-item ${page===key?'active':''}" href="#${key}" ${page===key?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${navIcon(key)}</span><span>${name}</span></a>`).join('');nativeDateControl.remove();$('#main').innerHTML=({today:todayPage,health:healthPage,training:trainingPage,work:workPage,review:reviewPage,settings:settingsPage}[page])();$('#date-slot').append(nativeDateControl);$('#selected-date').value=selected;$('#date-label').textContent=new Date(selected+'T12:00:00+08:00').toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',month:'numeric',day:'numeric'});if(storageBroken)$('#main').insertAdjacentHTML('afterbegin','<div class="notice">浏览器存储读取或保存失败。请先导出备份，避免关闭后丢失记录。</div>');updateStatus();$('#connection-form')?.addEventListener('submit',saveConnection);refreshGlass();}
 function checkin(){const old=list('checkin').at(-1)?.body||{energy:3,fatigue:2,soreness:1,mood:3,note:''};modal('今天的状态',`<form>${[['energy','精力','1 很低 · 5 充沛'],['fatigue','疲劳','1 不累 · 5 很累'],['soreness','酸痛','1 无 · 5 明显'],['mood','心情','1 低落 · 5 愉快']].map(([k,label,hint])=>`<div class="field"><span>${label} <small>${hint}</small></span><div class="rating">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="${k}" value="${n}" ${Number(old[k])===n?'checked':''} required>${n}</label>`).join('')}</div></div>`).join('')}<label class="field">还有什么想补充？<textarea name="note" maxlength="3000" placeholder="比如：今天熬夜了，下午有点困…">${escape(old.note)}</textarea></label><div class="form-actions"><button class="button" type="submit">保存状态</button></div></form>`,f=>{change('checkin',{energy:+f.get('energy'),fatigue:+f.get('fatigue'),soreness:+f.get('soreness'),mood:+f.get('mood'),note:f.get('note').trim()},'checkin');close();render();toast('状态已保存在本机');});}
 function task(id){const old=id?doc().records[id]:null;if(!old&&list('task').length>=3){toast('今天已有三件事，先完成或调整现有事项');return;}const b=old?.body||{};modal(old?'更新事项':'添加一件重要的事',`<form><label class="field">具体做什么<input name="title" required maxlength="200" value="${escape(b.title)}" placeholder="例如：核对核心板的 GTH 引出数量"></label><label class="field">所属项目<input name="project" maxlength="100" value="${escape(b.project)}" placeholder="毕设 / OPU / 学习 / 生活"></label><label class="field">实际结果<textarea name="result" maxlength="3000" placeholder="做到了哪一步？">${escape(b.result)}</textarea></label><label class="field">卡在哪里<textarea name="blocker" maxlength="3000" placeholder="有什么需要下一次一起解决？">${escape(b.blocker)}</textarea></label><label class="inline-check"><input type="checkbox" name="done" ${b.done?'checked':''}>已完成</label><div class="form-actions"><button class="button">保存事项</button></div></form>`,f=>{const title=f.get('title').trim();if(!title)throw new Error('请填写具体事项');change('task',{title,project:f.get('project').trim(),result:f.get('result').trim(),blocker:f.get('blocker').trim(),done:f.has('done')},id);close();render();toast('事项已保存');});}
 function exercise(id){const old=trainingItems(doc(),planFor()).find(r=>r.id===id);modal(old?'编辑动作':'添加动作',`<form><label class="field">动作<input name="name" required maxlength="100" value="${escape(old?.name||'')}" placeholder="动作名称"></label><label class="field">安排（可选）<input name="detail" maxlength="200" value="${escape(old?.detail||'')}" placeholder="如：3 组 × 10 次"></label><div class="form-actions"><button class="button">保存</button></div></form>`,f=>{const name=f.get('name').trim();if(!name)throw new Error('请填写动作名称');const {id:unused,...previous}=old||{};change('exercise',{...previous,name,detail:f.get('detail').trim(),done:old?.done||false,source:old?.source||'user'},id);close();render();});}
@@ -111,7 +112,8 @@ function paintUpdateStatus(){
  const status=$('#version-status'),check=$('#check-update'),install=$('#install-update');
  if(status)status.textContent=updateMessage;
  if(check){check.disabled=checkingUpdate;check.textContent=checkingUpdate?'检查中…':'检查更新';}
- if(install)install.hidden=!updateReady;
+ if(install){install.hidden=!updateReady;install.disabled=busy;install.textContent=busy?'同步中…':'立即更新';}
+ const apply=$('#apply-update');if(apply){apply.disabled=busy;apply.textContent=busy?'同步中…':'立即更新';}
 }
 function offerUpdate(){updateReady=true;updateMessage='有新版本可更新';const banner=$('#update-banner');if(banner)banner.hidden=false;paintUpdateStatus();}
 async function checkUpdates(manual=false){
