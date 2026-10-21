@@ -2,10 +2,10 @@ import { emptyDay,validateDay,mergeDays } from './core.js';
 import {dataWorkspace} from './workspace.js';
 export class GithubStore {
   // Safari requires native fetch to be called with its global receiver.
-  constructor({repo,branch,token,testRunId=null}, fetcher=globalThis.fetch.bind(globalThis)) {this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;this.workspace=dataWorkspace(testRunId);this.testRunId=testRunId;}
+  constructor({repo,branch,token,testRunId=null,signal=null}, fetcher=globalThis.fetch.bind(globalThis)) {this.signal=signal;this.repo=repo;this.branch=branch||'main';this.token=token;this.fetcher=fetcher;this.workspace=dataWorkspace(testRunId);this.testRunId=testRunId;}
   path(kind,date){return this.workspace.path(kind,date);}
   async api(path,options={}) {
-    const response=await this.fetcher('https://api.github.com'+path,{...options,cache:'no-store',signal:AbortSignal.timeout(25000),headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+this.token,'X-GitHub-Api-Version':'2022-11-28',...options.headers}});
+    const response=await this.fetcher('https://api.github.com'+path,{...options,cache:'no-store',signal:this.signal||AbortSignal.timeout(20000),headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+this.token,'X-GitHub-Api-Version':'2022-11-28',...options.headers}});
     if (response.status===404) return null;
     if (!response.ok) {const messages={401:'GitHub 密钥无效或已过期',403:'GitHub 拒绝访问：检查权限、额度和仓库套餐',409:'云端已变化，请重新同步',422:'GitHub 未接受请求，请检查文件和分支'};throw new Error(messages[response.status]||'GitHub 请求失败：'+response.status);}
     return response.status===204?{}:response.json();

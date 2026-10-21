@@ -26,7 +26,7 @@ if(cleanedPreview.removed)try{localStorage.setItem(storageKey(),JSON.stringify(s
 let externalChange=false,syncError='';
 let updateRegistration=null,updateReady=false,reloading=false,lastUpdateCheck=0,checkingUpdate=false,updateMessage='可手动检查更新',updateInit=null;
 let selected=dayKey(),page=location.hash.slice(1)||'today',busy=false,timer,fileMode='health',conflictDate=null;
-let healthImportAbort=null,resyncHealth=false;
+let healthImportAbort=null,pendingSync=null;
 const tabs=[['today','◫','日程'],['health','♡','健康'],['training','⌁','训练'],['work','▤','工作'],['review','◷','复盘']];
 function navIcon(key){const paths={today:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4M17 3v4M3 11h18M8 15h3"/>',health:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',training:'<path d="m5 7 12 12M3 9l6-6M15 21l6-6M3 5l2-2M19 21l2-2M7 5l12 12"/>',work:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M8 6V3h8v3M3 12h18M10 12v3h4v-3"/>',review:'<path d="M4 5v5h5M4.5 9a8 8 0 1 1-.2 6M12 7v5l3 2"/>'};return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths[key]||''}</svg>`;}
 const doc=()=>state.days[selected]||emptyDay(selected);
@@ -44,7 +44,7 @@ function updateStatus(){
 }
 function change(type,body,id){if(externalChange)throw new Error('另一窗口已更新记录，请关闭编辑并重新打开后保存');const d=state.days[selected]||emptyDay(selected);const r=makeRecord(type,selected,body,id);if(workspace.testRunId)r.testRunId=workspace.testRunId;d.records[r.id]=r;state.days[selected]=d;markDirty(selected);return r;}
 function markDirty(date){if(!state.dirty.includes(date))state.dirty.push(date);save();schedule();}
-function schedule(){if(token){clearTimeout(timer);timer=setTimeout(()=>syncAll(false),30000);}}
+function schedule(){if(token){clearTimeout(timer);timer=setTimeout(()=>syncAll(false,false,true),1500);}}
 function removeRecord(id){if(externalChange)throw new Error('另一窗口已更新记录，请重新打开页面');const r=doc().records[id];if(!r)return;r.deleted=true;r.updatedAt=new Date().toISOString();markDirty(selected);render();}
 function modal(title,html,onSubmit){
  $('#modal-title').textContent=title;$('#modal-body').innerHTML=html;
@@ -54,7 +54,7 @@ function modal(title,html,onSubmit){
   const primary=f.querySelector('button:not([type="button"])');
   if(primary){submit.textContent=primary.textContent;primary.hidden=true;}else submit.textContent='保存';
   submit.onclick=()=>f.requestSubmit();
-  f.addEventListener('submit',async e=>{e.preventDefault();try{if(externalChange)throw new Error('另一窗口已更新，请先复制编辑内容，再关闭弹窗重新编辑');if(busy)throw new Error('请等待同步完成后保存');await onSubmit(new FormData(f),f);}catch(err){toast(err.message);}});
+  f.addEventListener('submit',async e=>{e.preventDefault();try{if(externalChange)throw new Error('另一窗口已更新，请先复制编辑内容，再关闭弹窗重新编辑');await onSubmit(new FormData(f),f);}catch(err){toast(err.message);}});
  }
  $('#modal').showModal();
 }
@@ -104,11 +104,62 @@ function exercise(id){const old=trainingItems(doc(),planFor()).find(r=>r.id===id
 function toggleExercise(id,done){const row=trainingItems(doc(),planFor()).find(r=>r.id===id);if(!row)return;const {id:unused,...body}=row;change('exercise',{...body,done,completedAt:done?new Date().toISOString():null},id);render();}
 function removeExercise(id){const row=trainingItems(doc(),planFor()).find(r=>r.id===id);if(!row)return;const {id:unused,...body}=row;const record=makeRecord('exercise',selected,body,id);record.deleted=true;const d=state.days[selected]||emptyDay(selected);d.records[id]=record;state.days[selected]=d;markDirty(selected);render();}
 function textEntry(type,title,placeholder){const old=type==='reflection'?list(type).at(-1):null;modal(title,`<form><label class="field">${placeholder}<textarea name="text" required maxlength="6000">${escape(old?.body.text||'')}</textarea></label><div class="form-actions"><button class="button">保存</button></div></form>`,f=>{const text=f.get('text').trim();if(!text)throw new Error('请写点内容再保存');change(type,{text,...(type==='question'?{resolved:false}:{})},old?.id);close();render();toast('已保存，留给下一次对话');});}
-async function syncAll(manual=true,week=false){const lookback=typeof week==='number'?Math.max(1,Math.min(30,week)):week?7:2;if(externalChange){toast('另一窗口已更新记录，请先关闭编辑或刷新页面');return;}if(busy){if(manual)toast('正在同步，请稍候');return;}if(!token){page='settings';location.hash='settings';render();if(manual)toast('先设置仓库密钥；当前记录已保存在本机');return;}if($('#modal').open){if(manual)toast('请先保存或关闭正在编辑的内容');return;}clearTimeout(timer);syncError='';busy=true;updateStatus();let issues=[],success=0;const scope=storageKey(),store=new GithubStore({...config,token,testRunId:workspace.testRunId});try{await store.verifyPrivate();const days=new Set([...state.dirty,selected,shiftDay(selected,-1),...Array.from({length:lookback},(_,i)=>shiftDay(selected,-i))]);for(const date of days){if(externalChange)throw new Error('另一窗口已修改本机记录，请刷新后再同步');if(storageKey()!==scope)throw new Error('连接设置已变化，同步停止');const local=structuredClone(state.days[date]||emptyDay(date)),base=structuredClone(state.base[date]||emptyDay(date));try{const merged=await store.syncDay(date,base,local);state.base[date]=structuredClone(merged);const unchanged=JSON.stringify(state.days[date]||emptyDay(date))===JSON.stringify(local);if(unchanged){state.days[date]=merged;state.dirty=state.dirty.filter(d=>d!==date);}else{const current=state.days[date];const {mergeDays}=await import('./core.js');const rebase=mergeDays(local,current,merged);if(!rebase.conflicts.length)state.days[date]=rebase.doc;}success++;save();}catch(err){if(err.conflicts){conflictDate=date;state.conflict={date,remote:err.remote,ids:err.conflicts};save();}throw err;}}
-const extras=new Set([selected,shiftDay(selected,-1),...state.healthDirty,...Array.from({length:lookback},(_,i)=>shiftDay(selected,-i))]);for(const date of extras){try{const path=store.path('health',date);const remote=await readWorkspace(store,'health',date);if(remote){remote.doc=normalizeHealth(remote.doc);if(remote.doc.date!==date)throw new Error('健康文件名和日期不一致');}const local=state.health[date];if(state.healthDirty.includes(date)&&local){if(remote && Date.parse(remote.doc.generatedAt)>Date.parse(local.generatedAt)){state.health[date]=normalizeHealth(remote.doc);}else if(JSON.stringify(normalizeHealth(local))!==JSON.stringify(remote?.doc))await store.write(path,local,remote?.sha);state.healthDirty=state.healthDirty.filter(d=>d!==date);}else if(remote)state.health[date]=normalizeHealth(remote.doc);}catch(err){issues.push(date+' 健康：'+err.message);}}
-try{const p=await readWorkspace(store,'plans',selected);if(p)state.plans[selected]=normalizePlan(p.doc,selected);}catch(err){issues.push('建议：'+err.message);}
-if(!issues.length){state.lastSync=new Date().toISOString();}else{syncError=issues.join('；');}save();if(!$('#modal').open&&!document.activeElement?.matches?.('[data-note-section]'))render();if(manual||issues.length)toast(issues.length?'日记录已同步；部分数据未同步：'+issues.join('；'):'同步完成，已读取选中日期的健康与建议');
-}catch(err){syncError=err.message;save();if(manual||!navigator.onLine||err.conflicts)toast((success?'部分记录已同步。':'')+err.message);}finally{busy=false;updateStatus();if(resyncHealth){resyncHealth=false;queueMicrotask(()=>syncAll(false,14));}if(state.dirty.length||state.healthDirty.length){/* Keep pending changes; retry on reopen or manual sync. */}}}
+// Local edits remain available while a bounded background pass uploads a snapshot.
+async function syncAll(manual=true,week=false,uploadOnly=false){
+ const lookback=typeof week==='number'?Math.max(1,Math.min(30,week)):week?7:1;
+ if(externalChange){if(manual)toast('另一窗口已更新记录，请先关闭编辑或刷新页面');return;}
+ if(busy){pendingSync={manual:manual||pendingSync?.manual||false,lookback:Math.max(lookback,pendingSync?.lookback||1),uploadOnly:uploadOnly&&(pendingSync?.uploadOnly??true)};return;}
+ if(!token){if(manual){page='settings';location.hash='settings';render();toast('先设置仓库密钥；当前记录已保存在本机');}return;}
+ if($('#modal').open){if(manual)toast('请先保存或关闭正在编辑的内容');return;}
+ clearTimeout(timer);syncError='';busy=true;updateStatus();
+ let issues=[],success=0;
+ const scope=storageKey(),syncDate=selected,signal=AbortSignal.timeout(20000),store=new GithubStore({...config,token,testRunId:workspace.testRunId,signal});
+ try{
+  await store.verifyPrivate();
+  const days=new Set([...state.dirty,...(uploadOnly?[]:Array.from({length:lookback},(_,i)=>shiftDay(syncDate,-i)))]);
+  for(const date of days){
+   if(externalChange)throw new Error('另一窗口已修改本机记录，请刷新后再同步');
+   if(storageKey()!==scope)throw new Error('连接设置已变化，同步停止');
+   const local=structuredClone(state.days[date]||emptyDay(date)),base=structuredClone(state.base[date]||emptyDay(date));
+   try{
+    const merged=await store.syncDay(date,base,local);state.base[date]=structuredClone(merged);
+    if(JSON.stringify(state.days[date]||emptyDay(date))===JSON.stringify(local)){state.days[date]=merged;state.dirty=state.dirty.filter(d=>d!==date);}
+    else{const {mergeDays}=await import('./core.js');const rebase=mergeDays(local,state.days[date],merged);if(!rebase.conflicts.length)state.days[date]=rebase.doc;}
+    success++;save();
+   }catch(err){if(err.conflicts){conflictDate=date;state.conflict={date,remote:err.remote,ids:err.conflicts};save();}throw err;}
+  }
+  // Keep writes serial, and never clear a newer local health edit's dirty flag.
+  const healthPending=[...state.healthDirty];
+  for(const date of healthPending){
+   const local=structuredClone(state.health[date]);if(!local)continue;
+   const remote=await readWorkspace(store,'health',date);
+   if(remote){remote.doc=normalizeHealth(remote.doc);if(remote.doc.date!==date)throw new Error('健康文件名和日期不一致');}
+   let merged=local;
+   if(remote&&Date.parse(remote.doc.generatedAt)>Date.parse(local.generatedAt))merged=remote.doc;
+   else if(JSON.stringify(normalizeHealth(local))!==JSON.stringify(remote?.doc))await store.write(store.path('health',date),local,remote?.sha);
+   if(JSON.stringify(state.health[date])===JSON.stringify(local)){state.health[date]=merged;state.healthDirty=state.healthDirty.filter(d=>d!==date);}save();
+  }
+  if(!uploadOnly){
+   const extras=Array.from({length:lookback},(_,i)=>shiftDay(syncDate,-i)).filter(date=>!healthPending.includes(date));
+   for(let offset=0;offset<extras.length;offset+=4)await Promise.all(extras.slice(offset,offset+4).map(async date=>{
+    try{const remote=await readWorkspace(store,'health',date);if(remote){const h=normalizeHealth(remote.doc);if(h.date!==date)throw new Error('健康文件名和日期不一致');if(!state.healthDirty.includes(date))state.health[date]=h;}}
+    catch(err){issues.push(date+' 健康：'+err.message);}
+   }));
+   try{const p=await readWorkspace(store,'plans',syncDate);if(p)state.plans[syncDate]=normalizePlan(p.doc,syncDate);}catch(err){issues.push('建议：'+err.message);}
+  }
+  if(signal.aborted)throw new Error('同步超时，修改已保存在本机，可稍后重试');
+  if(!issues.length)state.lastSync=new Date().toISOString();else syncError=issues.join('；');save();
+  if(!$('#modal').open&&!document.activeElement?.matches?.('[data-note-section]'))render();
+  if(manual)toast(issues.length?'部分数据未同步：'+issues.join('；'):'同步完成');
+ }catch(err){syncError=signal.aborted?'同步超时，修改已保存在本机，可稍后重试':err.message;save();if(manual||!navigator.onLine||err.conflicts)toast((success?'部分记录已同步。':'')+syncError);}
+ finally{
+  busy=false;updateStatus();
+  const next=pendingSync;pendingSync=null;
+  if(!syncError&&!externalChange&&(next||state.dirty.length||state.healthDirty.length)){
+   clearTimeout(timer);timer=setTimeout(()=>syncAll(next?.manual||false,next?.lookback||false,next?.uploadOnly??true),next?0:1500);
+  }
+ }
+}
 async function saveConnection(e){e.preventDefault();if(busy)return;const f=new FormData(e.target),newToken=f.get('token').trim();if(!newToken)return;const button=$('[type="submit"]',e.target);button.disabled=true;try{const probe=new GithubStore({...config,token:newToken,testRunId:workspace.testRunId});const target=await probe.discoverPrivate(config.repo);const repo=target.full_name,branch=target.default_branch||'main';const changed=repo!==config.repo||branch!==config.branch;config={...config,repo,branch,remember:true};token=newToken;localStorage.setItem('lizi-life:config',JSON.stringify(config));sessionStorage.setItem('lizi-life:token',token);localStorage.setItem('lizi-life:token',token);if(changed){const saved=readStorage(storageKey(),null);state=saved?cleanKnownPreview({...blank(),...saved}).state:blank();save();conflictDate=state.conflict?.date||null;}render();toast('连接成功');await syncAll(true);}catch(err){toast(err.message);}finally{button.disabled=false;}}
 
 function download(name,data){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -144,13 +195,13 @@ async function copyHealthSummary(){if(token)await syncAll(false,14);const health
 async function conflictChoice(keepLocal){if(busy)return;const c=state.conflict;if(!c){toast('没有待处理冲突');return;}modal('解决 '+c.date+' 的冲突',`<form><div class="notice">${keepLocal?'仅冲突的记录以本机版本为准，其他云端记录会保留。':'该日将使用刚刚读取到的云端版本，本机未上传修改会被替换。'}请先导出备份。</div><label class="inline-check"><input type="checkbox" required>我已备份并确认选择</label><div class="form-actions"><button class="button ghost" type="button" data-action="export">导出当前数据</button><button class="button">确认处理</button></div></form>`,()=>{if(keepLocal){const base=state.base[c.date]||emptyDay(c.date);for(const id of c.ids) {if(c.remote.records[id])base.records[id]=structuredClone(c.remote.records[id]);else delete base.records[id];}state.base[c.date]=base;if(!state.dirty.includes(c.date))state.dirty.push(c.date);}else{state.days[c.date]=structuredClone(c.remote);state.base[c.date]=structuredClone(c.remote);state.dirty=state.dirty.filter(d=>d!==c.date);}delete state.conflict;conflictDate=null;save();close();render();toast('已保存选择，请重新同步');});}
 async function copySummary(){const dates=Array.from({length:7},(_,i)=>shiftDay(selected,-6+i));const data=dates.map(date=>({date,records:records(state.days[date]),health:healthFor(date),plan:state.plans[date]}));const text=(workspace.testRunId?'【闭环测试 '+workspace.testRunId+'，不代表真实完成】\n':'')+'请根据以下 LiZi Life 真实记录评估近期状态，先指出缺失数据，再提出下一步健康生活、训练与工作安排。不要把未记录当作未完成。\n'+JSON.stringify(data,null,2);try{await navigator.clipboard.writeText(text);toast('七天摘要已复制，可粘贴到对话');}catch{modal('七天摘要',`<label class="field">复制以下内容<textarea id="summary-text" readonly style="min-height:300px">${escape(text)}</textarea></label>`);$('#summary-text').select();}}
 const actions={'check-update':()=>checkUpdates(true),'apply-update':applyUpdate,settings:()=>{location.hash='settings';page='settings';render();},checkin,task:()=>task(), 'edit-task':el=>task(el.dataset.id),'remove-task':el=>removeTask(el.dataset.id),exercise:()=>exercise(),'edit-exercise':el=>exercise(el.dataset.id),'remove-exercise':el=>removeExercise(el.dataset.id),question:()=>textEntry('question','留一个问题','你想在下次讨论什么？'),reflection:()=>textEntry('reflection','晚间复盘','今天做到了什么？卡在哪里？明天想怎么调整？'),delete:el=>modal('移除这条记录',`<form><p>这条记录将从列表移除，其他记录会保留。</p><div class="form-actions"><button class="button danger">确认移除</button></div></form>`,()=>{removeRecord(el.dataset.id);close();render();}),'import-health':importHealthDialog,'copy-health-summary':copyHealthSummary,'import-plan':()=>selectFile('plan'),'import-backup':()=>selectFile('backup'),export:()=>download('lizi-life-backup-'+dayKey()+(workspace.testRunId?'-test-'+workspace.testRunId:'')+'.json',{...backup(state),...(workspace.testRunId?{testRunId:workspace.testRunId}:{})}),'manual-health':manualHealth,'health-help':healthHelp,'download-health-example':()=>download('health-example-'+selected+'.json',healthExample()),'copy-summary':copySummary,'load-week':()=>syncAll(true,true),'conflict-local':()=>conflictChoice(true),'conflict-remote':()=>conflictChoice(false),'save-shortcut':()=>{config.shortcut=$('#shortcut-name').value.trim()||'LiZi 健康同步';localStorage.setItem('lizi-life:config',JSON.stringify(config));toast('快捷指令名称已保存');},'run-shortcut':()=>{location.href='shortcuts://run-shortcut?name='+encodeURIComponent(config.shortcut||'LiZi 健康同步');},disconnect:()=>{if(busy){toast('请等待同步完成');return;}token='';sessionStorage.removeItem('lizi-life:token');localStorage.removeItem('lizi-life:token');config.remember=false;localStorage.setItem('lizi-life:config',JSON.stringify(config));clearTimeout(timer);render();toast('密钥已清除，本机记录保留');}};
-document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){if(busy&&!['export','copy-summary','download-health-example'].includes(el.dataset.action)){toast('同步中，请稍候再操作');return;}try{const result=actions[el.dataset.action]?.(el);if(result?.catch)result.catch(err=>toast(err.message));}catch(err){toast(err.message);}}const date=e.target.closest('[data-date]');if(date){selected=date.dataset.date;render();if(token)syncAll(false);}});
+document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){if(busy&&['import-health','import-backup','import-plan','manual-health','conflict-local','conflict-remote','disconnect','apply-update'].includes(el.dataset.action)){toast('同步中，请稍候再操作');return;}try{const result=actions[el.dataset.action]?.(el);if(result?.catch)result.catch(err=>toast(err.message));}catch(err){toast(err.message);}}const date=e.target.closest('[data-date]');if(date){selected=date.dataset.date;render();if(token)syncAll(false);}});
 document.addEventListener('input',e=>{const section=e.target.dataset?.noteSection;if(!['work','training','review'].includes(section))return;try{const text=e.target.value;if(text.length>20000)throw new Error('Note最多20000字');change('note',{section,text},'note-'+section);}catch(error){toast(error.message);}});
-document.addEventListener('change',e=>{const exerciseId=e.target.dataset.exerciseToggle;if(exerciseId){if(busy){e.target.checked=!e.target.checked;toast('同步中，请稍候');return;}try{toggleExercise(exerciseId,e.target.checked);}catch(err){e.target.checked=!e.target.checked;toast(err.message);}return;}const id=e.target.dataset.taskToggle,qid=e.target.dataset.questionToggle;if(id){if(busy){e.target.checked=!e.target.checked;toast('同步中，请稍候');return;}const r=taskItems(doc(),planFor()).find(r=>r.id===id);if(!r)return;const {id:unused,...body}=r;change('task',{...body,done:e.target.checked},id);render();}if(qid){if(busy){e.target.checked=!e.target.checked;toast('同步中，请稍候');return;}const r=doc().records[qid];change('question',{...r.body,resolved:e.target.checked},qid);render();}});
+document.addEventListener('change',e=>{const exerciseId=e.target.dataset.exerciseToggle;if(exerciseId){try{toggleExercise(exerciseId,e.target.checked);}catch(err){e.target.checked=!e.target.checked;toast(err.message);}return;}const id=e.target.dataset.taskToggle,qid=e.target.dataset.questionToggle;if(id){const r=taskItems(doc(),planFor()).find(r=>r.id===id);if(!r)return;const {id:unused,...body}=r;change('task',{...body,done:e.target.checked},id);render();}if(qid){const r=doc().records[qid];change('question',{...r.body,resolved:e.target.checked},qid);render();}});
 $('#json-file').addEventListener('change',async e=>{try{if(e.target.files[0])await importFile(e.target.files[0]);}catch(err){toast('导入失败：'+err.message);}});
 $('#close-modal').onclick=close;$('#modal').addEventListener('click',e=>{if(e.target===$('#modal')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)close();}});
 $('#selected-date').onclick=()=>{try{$('#selected-date').showPicker?.();}catch{/* Native input focus remains the fallback. */}};
-$('#settings-button').onclick=actions.settings;$('#sync-button').onclick=()=>syncAll(true);$('#selected-date').onchange=e=>{if(!isDay(e.target.value))return;selected=e.target.value;render();if(token)syncAll(false);};window.addEventListener('hashchange',()=>{page=location.hash.slice(1)||'today';render();window.scrollTo(0,0);if(['health','review'].includes(page)&&token){if(busy)resyncHealth=true;else syncAll(false,page==='health'?14:7);}});window.addEventListener('online',()=>{if(token)syncAll(false);});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token&&!$('#modal').open)syncAll(false);});setInterval(()=>{if(!document.hidden&&token&&!$('#modal').open)syncAll(false);},120000);
+$('#settings-button').onclick=actions.settings;$('#sync-button').onclick=()=>syncAll(true);$('#selected-date').onchange=e=>{if(!isDay(e.target.value))return;selected=e.target.value;render();if(token)syncAll(false);};window.addEventListener('hashchange',()=>{page=location.hash.slice(1)||'today';render();window.scrollTo(0,0);if(['health','review'].includes(page)&&token){syncAll(false,page==='health'?14:7);}});window.addEventListener('online',()=>{if(token)syncAll(false);});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&token&&!$('#modal').open)syncAll(false);});setInterval(()=>{if(!document.hidden&&token&&!$('#modal').open)syncAll(false);},45000);
 window.addEventListener('storage',e=>{if(e.key===storageKey() && e.newValue){if(busy){externalChange=true;toast('另一窗口正在更新数据，请同步完成后刷新页面');return;}if($('#modal').open||document.activeElement?.matches?.('[data-note-section]')){externalChange=true;toast('另一窗口已更新记录，请先复制正在编辑的文字，再刷新页面');}else{state={...blank(),...readStorage(storageKey(),blank())};render();}}});
 $('#modal').addEventListener('close',()=>{if(!$('#modal').open&&healthImportAbort){healthImportAbort.abort();healthImportAbort=null;}if(externalChange&&!busy){state={...blank(),...readStorage(storageKey(),blank())};externalChange=false;render();}});
 setupSwipeActions({root:$('#main')});
