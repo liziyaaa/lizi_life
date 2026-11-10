@@ -71,8 +71,11 @@ try{
  const refresh=page.waitForRequest(req=>req.method()==='GET'&&req.url().includes('/data/test-runs/f7-smoke/plans/'));
  await gesture(180,130,0,238);await refresh;
  await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
- await page.getByRole('link',{name:'健康',exact:true}).tap();await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
+ await page.getByRole('link',{name:'健康',exact:true}).tap();
+ await page.getByRole('heading',{name:'健康',exact:true}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
  await page.getByRole('button',{name:'导入健康ZIP'}).tap();
+ await page.getByRole('dialog',{name:'导入健康数据'}).waitFor();
  const stamp=`${date} 06:30:00 +0800`;
  const xml=`<?xml version="1.0"?><HealthData locale="zh_CN"><ExportDate value="${date} 13:00:00 +0800"/><Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Synthetic device" unit="count/min" startDate="${stamp}" endDate="${stamp}" value="72"/></HealthData>`;
  const zip=zipSync({'apple_health_export/export.xml':strToU8(xml)});
@@ -80,7 +83,9 @@ try{
  await page.locator('#modal-save').tap();await page.getByRole('dialog',{name:'确认健康摘要'}).waitFor();
  await page.locator('#modal-save').tap();await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
  assert.equal(files.get('data/test-runs/f7-smoke/health/'+date+'.json').metrics.averageHeartRate,72);
- await page.getByRole('link',{name:'复盘',exact:true}).tap();await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
+ await page.getByRole('link',{name:'复盘',exact:true}).tap();
+ await page.getByRole('heading',{name:'复盘',exact:true}).waitFor();
+ await page.waitForFunction(()=>document.querySelector('#sync-button').dataset.state==='synced');
  await page.getByRole('textbox',{name:'复盘 Note'}).fill('合成复盘备注');
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'导出备份'}).tap();const d=await download;assert.match(d.suggestedFilename(),/f7-smoke\.json$/);
  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
