@@ -1,7 +1,12 @@
 import { mkdir,copyFile,rm,readdir } from 'node:fs/promises';
 import path from 'node:path';
-const allowed=['index.html','app.js','core.js','sync.js','workspace.js','pull-refresh.js','swipe-actions.js','health-data.js','health-zip.js','health-worker.js','fflate.js','FFLATE_LICENSE.txt','updates.js','glass.js','THIRD_PARTY_NOTICES.txt','style.css','sw.js','icon.svg','icon-192.png','icon-512.png','manifest.webmanifest'];
+import {fileURLToPath} from 'node:url';
+const allowed=['index.html','app.js','framework7-ui.js','core.js','sync.js','workspace.js','health-data.js','health-zip.js','health-worker.js','fflate.js','FFLATE_LICENSE.txt','updates.js','style.css','sw.js','icon.svg','icon-192.png','icon-512.png','manifest.webmanifest'];
 await rm('dist',{recursive:true,force:true});await mkdir('dist');
 for(const name of allowed)await copyFile(path.join('app',name),path.join('dist',name));
+const framework7=fileURLToPath(new URL('../node_modules/framework7/',import.meta.url));
+const vendor={'framework7-bundle.min.css':'framework7-bundle.min.css','framework7-bundle.min.js':'framework7-bundle.min.js','FRAMEWORK7_LICENSE.txt':'LICENSE'};
+for(const [name,source] of Object.entries(vendor))await copyFile(path.join(framework7,source),path.join('dist',name));
+allowed.push(...Object.keys(vendor));
 const names=await readdir('dist');if(names.some(n=>!allowed.includes(n)))throw new Error('Unexpected published file');
 console.log('Built '+names.length+' static application files. No personal records included.');

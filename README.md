@@ -1,6 +1,6 @@
 # LiZi Life
 
-个人健康、训练、待办与Note记录PWA。当前v1.6.1。公开仓库仅存应用代码和合成测试，真实数据保存在用户授权的私有仓库。
+个人健康、训练、待办与Note记录PWA。当前v1.7.0。公开仓库仅存应用代码和合成测试，真实数据保存在用户授权的私有仓库。
 
 ## 页面
 
@@ -23,10 +23,16 @@
 
 ## 发布与验证
 
-Node22+运行 `npm run check`、`npm test`、`npm run build`。GitHub Pages通过Actions仅发布构建白名单中的21个静态资源，数据目录、文档和凭据不会打包。Service Worker仅缓存同源静态资源，GitHub API数据不经SW缓存。App提供更新提示及手动检查更新。
+Node 22+ 先运行 `npm ci --ignore-scripts`，再运行 `npm run check`、`npm test`、`npm run build`。GitHub Pages通过Actions仅发布构建白名单中的21个静态资源，数据目录、文档和凭据不会打包。Service Worker仅缓存同源静态资源，GitHub API数据不经SW缓存。App提供更新提示及手动检查更新。
 
 App不会自动调用模型或向聊天发消息。ChatGPT通过其独立GitHub连接器读取私有数据，也可由用户复制复盘摘要。没有暗中配置的定时分析或计费模型调用。
 
 ## v1.6.1 同步交互
 
 勾选、编辑和 Note 立即保存到本机，同步期间也可继续操作。停止输入约 1.5 秒后合并上传；请求期间的新修改保留在队列，完成后再传最终状态。前台每 45 秒检查云端，隐藏时停止轮询。日常只检查选中日期，修改上传不重复扫描健康历史；进入健康/复盘再读取对应历史范围。每轮网络请求共用 20 秒截止时间，超时保留本机修改并显示失败，可手动重试。GitHub 网络速度仍会影响实际上传完成时间。
+
+## Framework7 iOS 界面
+
+界面使用锁定版本的 Framework7 Core 9.3.0，强制 iOS 主题。底栏、列表、Popup、Swipeout、下拉刷新和 Toast 由 Framework7 提供；业务数据和缓存键保持兼容。JS、CSS 与 MIT 许可证由构建复制到同源静态站点，安装后可离线打开。
+
+[Framework7 MCP](https://framework7.io/mcp/) 仅用于开发阶段查询组件 API、主题变量和 Core 示例。Codex 可运行 `codex mcp add framework7 --url https://framework7.io/mcp`，然后查询 `get-component`、`get-css-variables` 和 `get-demo`。网页运行不需要 MCP。

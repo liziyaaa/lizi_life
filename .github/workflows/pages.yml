@@ -2,7 +2,7 @@ name: Deploy Pages
 on:
   push:
     branches: [main]
-    paths: ['app/**', 'scripts/build.mjs', 'tests/**', 'package.json', '.github/workflows/pages.yml']
+    paths: ['app/**', 'scripts/build.mjs', 'tests/**', 'package.json', 'package-lock.json', '.github/workflows/pages.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,8 +22,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm run check && npm test && npm run build
-      - uses: actions/configure-pages@v5
+      - run: npm ci --ignore-scripts
+    - run: npm run check && npm test && npm run build
+      - run: npx playwright install --with-deps chromium
+    - run: npm run test:browser
+    - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
