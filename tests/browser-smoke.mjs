@@ -48,7 +48,7 @@ try{
  await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
  for(let i=1;i<=7;i++)await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-i*24,y}]});
  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
- await page.getByRole('button',{name:'编辑 器械推胸'}).click();
+ await page.locator('.swipeout-opened').getByRole('button',{name:'编辑 器械推胸'}).tap();
  await page.getByRole('dialog',{name:'编辑动作'}).waitFor();
  await page.getByRole('textbox',{name:'动作',exact:true}).fill('器械推胸（编辑）');
  await page.locator('#modal-save').click();
@@ -86,5 +86,5 @@ try{
  await desktop.getByRole('link',{name:'工作',exact:true}).click();await desktop.getByRole('heading',{name:'工作',exact:true}).waitFor();
  assert.ok(await desktop.getByRole('button',{name:'添加待办'}).isVisible());
  console.log('desktop passed; fake writes:',writes.length);
-}catch(e){console.error('browser errors',errors,'request failures',failures);console.error((await page.locator('body').innerText()).slice(0,1600));throw e;}
+}catch(e){console.error('browser errors',errors,'request failures',failures);console.error((await page.locator('body').innerText()).slice(0,1600));console.error('popup state',await page.locator('#modal').evaluate(el=>({title:el.getAttribute('aria-labelledby')&&el.querySelector('#modal-title').textContent,open:el.open,classes:el.className,display:getComputedStyle(el).display})));throw e;}
 finally{await browser.close();server.close();}
